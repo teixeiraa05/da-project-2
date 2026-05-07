@@ -7,14 +7,14 @@
 
 using namespace std;
 
-// Construtor
+// Constructor
 Parser::Parser(const std::string& rangesPath, const std::string& registersPath) {
     rangesFilePath = rangesPath;
     registersFilePath = registersPath;
 }
 
-// --- FUNÇÃO AUXILIAR ---
-// Limpa uma string como "12+" ou "14-" devolvendo apenas o inteiro 12 ou 14
+// --- HELPER FUNCTION ---
+// Cleans a token like "12+" or "14-" returning only the integer 12 or 14
 int cleanLineNumber(const string& token) {
     string cleanStr = "";
     for (char c : token) {
@@ -26,13 +26,13 @@ int cleanLineNumber(const string& token) {
     return stoi(cleanStr);
 }
 
-// --- PARSER DOS REGISTOS ---
+// --- REGISTERS PARSER ---
 ConfigRegisters Parser::parseRegistersFile() {
     ConfigRegisters config = {0, "basic", 0}; // Valores por defeito
     ifstream file(registersFilePath);
     
     if (!file.is_open()) {
-        cerr << "Erro: Nao foi possivel abrir o ficheiro " << registersFilePath << endl;
+        cerr << "Error: Could not open file " << registersFilePath << endl;
         return config;
     }
 
@@ -58,7 +58,7 @@ ConfigRegisters Parser::parseRegistersFile() {
             stringstream ss(valuePart);
             string algoName;
             
-            // Ler até à vírgula
+            // Read until the comma
             getline(ss, algoName, ',');
             algoName.erase(remove_if(algoName.begin(), algoName.end(), ::isspace), algoName.end());
             config.algorithm = algoName;
@@ -75,13 +75,13 @@ ConfigRegisters Parser::parseRegistersFile() {
     return config;
 }
 
-// --- PARSER DOS RANGES ---
+// --- RANGES PARSER ---
 vector<LiveRange> Parser::parseRangesFile() {
     vector<LiveRange> liveRanges;
     ifstream file(rangesFilePath);
     
     if (!file.is_open()) {
-        cerr << "Erro: Nao foi possivel abrir o ficheiro " << rangesFilePath << endl;
+        cerr << "Error: Could not open file " << rangesFilePath << endl;
         return liveRanges;
     }
 
@@ -89,7 +89,7 @@ vector<LiveRange> Parser::parseRangesFile() {
     string currentVarName = "";
 
     while (getline(file, line)) {
-        // Ignorar linhas vazias e comentários
+        // Ignore empty lines and comments
         if (line.empty() || line[0] == '#') continue;
 
         size_t colonPos = line.find(':');
@@ -98,10 +98,10 @@ vector<LiveRange> Parser::parseRangesFile() {
         string varPart = line.substr(0, colonPos);
         string rangesPart = line.substr(colonPos + 1);
 
-        // Limpar espaços
+        // Trim whitespace
         varPart.erase(remove_if(varPart.begin(), varPart.end(), ::isspace), varPart.end());
 
-        // Atualizar variável atual (se vier vazia usa a anterior)
+        // Update current variable name (if empty, keep previous)
         if (!varPart.empty()) {
             currentVarName = varPart; 
         }
@@ -109,7 +109,7 @@ vector<LiveRange> Parser::parseRangesFile() {
         LiveRange lr;
         lr.variableName = currentVarName;
 
-        // Separar os números pelas vírgulas
+        // Split numbers by commas
         stringstream ss(rangesPart);
         string token;
         while (getline(ss, token, ',')) {

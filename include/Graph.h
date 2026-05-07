@@ -7,50 +7,50 @@
 #include <set>
 
 /**
- * @brief Representa o Grafo de Interferencia para o problema de alocacao de registos.
- * @details Transforma os tempos de vida isolados das variaveis em Webs (nos do grafo) e
- * constroi a lista de adjacencias criando arestas entre Webs que partilham pontos de execucao.
+ * @brief Represents the Interference Graph for the register allocation problem.
+ * @details Converts isolated variable live ranges into Webs (graph nodes) and
+ * builds the adjacency list by creating edges between Webs that share execution points.
  */
 class Graph {
 private:
-    std::vector<Web> webs;                           /**< @brief Lista de todas as Webs criadas (os nos do grafo). */
-    std::map<int, std::set<int>> adjList;            /**< @brief Lista de Adjacencias: Mapeia o ID da Web para um conjunto de IDs de Webs vizinhas (com as quais interfere). */
+    std::vector<Web> webs;                           /**< @brief List of all Webs created (graph nodes). */
+    std::map<int, std::set<int>> adjList;            /**< @brief Adjacency list: maps a Web ID to a set of neighboring Web IDs (interfering webs). */
 
     /**
-     * @brief Agrupa os LiveRanges pertencentes a mesma variavel, fundindo aqueles que se intersetam temporalmente.
-     * @param liveRanges Vetor contendo a leitura bruta das linhas de codigo ativas de cada variavel.
-     * @note Complexidade Temporal: O(V * R^2), onde V e o numero de variaveis distintas e R o numero medio de ranges por variavel (devido aos ciclos aninhados de fusao).
+     * @brief Groups LiveRanges belonging to the same variable, merging those that overlap in time.
+     * @param liveRanges Vector containing the raw parsed live-range entries for each variable.
+     * @note Time complexity: O(V * R^2), where V is the number of distinct variables and R is the average number of ranges per variable (due to nested merge loops).
      */
     void buildWebs(const std::vector<LiveRange>& liveRanges);
 
     /**
-     * @brief Avalia a interferencia entre todas as Webs e constroi a lista de adjacencias.
-     * @details Se duas Webs coexistirem numa mesma linha de codigo, e criada uma aresta bidirecional entre elas.
-     * @note Complexidade Temporal: O(W^2 * L), onde W e o numero total de Webs e L o numero medio de linhas de codigo contidas numa Web.
+     * @brief Evaluates interference among all Webs and builds the adjacency list.
+     * @details If two Webs coexist on the same source line, a bidirectional edge is created between them.
+     * @note Time complexity: O(W^2 * L), where W is the total number of Webs and L is the average number of source lines per Web.
      */
     void buildInterferences();
 
 public:
     /**
-     * @brief Construtor da classe Graph. Inicializa automaticamente as Webs e as Interferencias.
-     * @param liveRanges Vetor de blocos temporais lidos pelo Parser.
+     * @brief Graph constructor. Automatically initializes Webs and interferences.
+     * @param liveRanges Vector of temporal blocks read by the Parser.
      */
     Graph(const std::vector<LiveRange>& liveRanges);
 
     /**
-     * @brief Retorna a lista de Webs (nos) construidas no grafo.
-     * @return const std::vector<Web>& Referencia constante para o vetor de Webs.
+     * @brief Returns the list of Webs (nodes) built in the graph.
+     * @return const std::vector<Web>& Constant reference to the vector of Webs.
      */
     const std::vector<Web>& getWebs() const { return webs; }
 
     /**
-     * @brief Retorna o mapeamento de interferencias entre as Webs.
-     * @return const std::map<int, std::set<int>>& Referencia constante para a lista de adjacencias.
+     * @brief Returns the interference mapping between Webs.
+     * @return const std::map<int, std::set<int>>& Constant reference to the adjacency list.
      */
     const std::map<int, std::set<int>>& getAdjList() const { return adjList; }
     
     /**
-     * @brief Imprime o grafo formatado na consola para fins de depuracao e apresentacao (T1.1).
+     * @brief Prints the graph to the console for debugging and presentation purposes (T1.1).
      */
     void printGraph() const;
 };

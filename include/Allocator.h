@@ -8,65 +8,65 @@
 #include <vector>
 
 /**
- * @brief Classe responsavel pela alocacao de registos baseada na Coloracao de Grafos.
- * @details Tenta atribuir a cada Web (no) uma "cor" (registo fisico) garantindo que
- * nenhuma Web intersetante partilhe o mesmo registo. Implementa taticas de Spilling e Splitting em caso de falta de recursos.
+ * @brief Class responsible for register allocation based on Graph Coloring.
+ * @details Attempts to assign each Web (node) a "color" (physical register) ensuring
+ * no interfering Web shares the same register. Implements Spilling and Splitting tactics when resources are insufficient.
  */
 class Allocator {
 private:
-    Graph graph;                         /**< @brief Instancia do grafo original com as Webs e arestas. */
-    ConfigRegisters config;              /**< @brief Configuracoes de limite de registos e parametros do algoritmo. */
+    Graph graph;                         /**< @brief Instance of the original graph containing Webs and edges. */
+    ConfigRegisters config;              /**< @brief Configuration for register limits and algorithm parameters. */
     
-    std::map<int, int> allocation;       /**< @brief Dicionario final que mapeia o ID da Web a cor do registo (-1 significa Memoria/M). */
-    bool isFeasible;                     /**< @brief Flag booleana que indica se o algoritmo conseguiu concluir a alocacao. */
+    std::map<int, int> allocation;       /**< @brief Final mapping from Web ID to register color (-1 means Memory/M). */
+    bool isFeasible;                     /**< @brief Boolean flag indicating whether the algorithm completed the allocation. */
     
-    std::vector<Web> finalWebs;          /**< @brief Cópia mutavel das Webs, essencial para permitir cortes (Splitting). */
+    std::vector<Web> finalWebs;          /**< @brief Mutable copy of the Webs, required to allow splitting. */
 
     /**
-     * @brief Tenta colorir o grafo atraves da reducao sucessiva de nos com grau inferior a N (Algoritmo de Chaitin).
-     * @return true Se foi possivel colorir o grafo sem recorrer a Spilling/Splitting.
-     * @note Complexidade Temporal: O(W^2 + E), onde W e o numero de Webs e E o numero de arestas no grafo.
+     * @brief Attempts to color the graph by repeatedly removing nodes with degree less than N (Chaitin's algorithm).
+     * @return true If it was possible to color the graph without resorting to Spilling/Splitting.
+     * @note Time complexity: O(W^2 + E), where W is the number of Webs and E the number of edges in the graph.
      */
     bool runBasicAllocation();
 
     /**
-     * @brief Algoritmo de coloracao que, em caso de bloqueio, sacrifica (Spill) a Web com maior grau de interferencia.
-     * @return true Se a alocacao foi concluida dentro do limite estipulado de K spills.
-     * @note Complexidade Temporal: O(W^3 + E) no pior caso, pois a cada bloqueio precisa de pesquisar e recalcular o grau de todos os nos restantes.
+     * @brief Coloring algorithm which, when stuck, sacrifices (spills) the Web with highest interference degree.
+     * @return true If the allocation completed within the stipulated limit of K spills.
+     * @note Time complexity: O(W^3 + E) in the worst case, since each spill may require recomputing degrees for remaining nodes.
      */
     bool runSpillingAllocation();
 
     /**
-     * @brief Algoritmo que divide Webs bloqueantes a meio (Splitting) para tentar acomoda-las em registos diferentes.
-     * @return true Se a alocacao obteve sucesso com o novo grafo transformado.
-     * @note Complexidade Temporal: O(S * (W^3 + E)), onde S e o limite de cortes (K_param), dado que recomeca o calculo a cada corte efetuado.
+     * @brief Algorithm that splits blocking Webs in half (Splitting) to try to place them in different registers.
+     * @return true If the allocation succeeded with the transformed graph.
+     * @note Time complexity: O(S * (W^3 + E)), where S is the split limit (K_param), since computation restarts after each split.
      */
     bool runSplittingAllocation();
 
     /**
-     * @brief Heuristica propria que privilegia o Splitting para maximizar variaveis em registo, usando Spilling apenas como ultimo recurso.
-     * @return true O algoritmo e garantido de ter sucesso devido a tatica infalivel de fallback.
-     * @note Complexidade Temporal: O(S * (W^3 + E)), pois avalia continuamente o estado do grafo apos cortes e remocoes hibridas.
+     * @brief Custom heuristic that favors Splitting to maximize variables in registers, using Spilling only as a last resort.
+     * @return true The algorithm is guaranteed to succeed due to a fallback tactic.
+     * @note Time complexity: O(S * (W^3 + E)), as it continuously evaluates the graph state after splits and hybrid removals.
      */
     bool runFreeAllocation(); 
 
 public:
     /**
-     * @brief Construtor da classe Allocator. Prepara as estruturas baseando-se no grafo gerado.
-     * @param g Referencia constante do Grafo de Interferencia.
-     * @param c Definicoes lidas do ficheiro de registos.
+     * @brief Allocator class constructor. Prepares internal structures based on the generated graph.
+     * @param g Constant reference to the Interference Graph.
+     * @param c Definitions read from the registers/configuration file.
      */
     Allocator(const Graph& g, const ConfigRegisters& c);
 
     /**
-     * @brief Lanca a execucao do algoritmo especifico ditado no ficheiro de configuracao (basic, spilling, splitting ou free).
+     * @brief Launches execution of the specific algorithm dictated in the configuration file (basic, spilling, splitting or free).
      */
     void run();
 
     /**
-     * @brief Gera o ficheiro de texto final com o formato rigoroso exigido no enunciado do projeto.
-     * @param filename Caminho e nome do ficheiro (ex: output.txt) onde o resultado sera escrito.
-     * @note Complexidade Temporal: O(W + L), onde W e o numero de webs resultantes e L a soma total das suas linhas.
+     * @brief Generates the final text file in the strict format required by the project specification.
+     * @param filename Path and name of the file (e.g. output.txt) where the result will be written.
+     * @note Time complexity: O(W + L), where W is the number of resulting webs and L the total sum of their lines.
      */
     void generateOutputFile(const std::string& filename) const;
 };

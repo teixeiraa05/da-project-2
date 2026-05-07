@@ -6,7 +6,7 @@
 #include <set>
 
 /**
- * @brief Representa um segmento de tempo de vida (Live Range) de uma variavel lido diretamente do ficheiro.
+ * @brief Represents a live range segment of a variable read directly from the input file.
  */
 struct LiveRange {
     std::string variableName; /**< @brief Nome da variavel original (ex: "sum", "i"). */
@@ -14,8 +14,8 @@ struct LiveRange {
 };
 
 /**
- * @brief Representa uma "Web", formada pela uniao de varios LiveRanges sobrepostos da mesma variavel.
- * @details Cada instancia desta estrutura atua como um nó no Grafo de Interferencia.
+ * @brief Represents a "Web", formed by the union of several overlapping LiveRanges of the same variable.
+ * @details Each instance of this structure acts as a node in the Interference Graph.
  */
 struct Web {
     int id;                   /**< @brief Identificador unico e numerico da Web (ex: 0 para web0). */
@@ -23,17 +23,17 @@ struct Web {
     std::set<int> lines;      /**< @brief Todas as linhas de execucao fundidas num unico conjunto ordenado. */
     
     /**
-     * @brief Verifica se a Web atual interfere com outra Web fornecida.
-     * @details Duas Webs interferem se os seus tempos de vida partilharem pelo menos um ponto de execucao (uma linha de codigo comum).
-     * * @param other A outra estrutura Web com a qual queremos testar a intersecao de linhas.
-     * @return true Se as Webs partilharem pelo menos uma linha de codigo (existe interferencia).
-     * @return false Se as Webs ocorrerem em momentos totalmente disjuntos do programa.
-     * * @note Complexidade Temporal: O(N log M), onde N e o numero de linhas na Web atual e M e o numero de linhas na Web 'other' (devido a pesquisa no std::set).
+     * @brief Checks whether the current Web interferes with another provided Web.
+     * @details Two Webs interfere if their live ranges share at least one execution point (a common source line).
+     * @param other The other Web structure to test for line intersection.
+     * @return true If the Webs share at least one source line (there is interference).
+     * @return false If the Webs occur at completely disjoint times in the program.
+     * @note Time complexity: O(N log M), where N is the number of lines in the current Web and M is the number in 'other' (due to std::set lookups).
      */
     bool interferesWith(const Web& other) const {
         for (int line : lines) {
             if (other.lines.find(line) != other.lines.end()) {
-                return true; // Partilham pelo menos uma linha!
+                return true; // They share at least one line
             }
         }
         return false;

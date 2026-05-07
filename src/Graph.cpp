@@ -11,13 +11,13 @@ Graph::Graph(const vector<LiveRange>& liveRanges) {
 void Graph::buildWebs(const vector<LiveRange>& liveRanges) {
     int webCounter = 0;
     
-    // Passo 1: Agrupar LiveRanges pelo nome da variável
+    // Step 1: Group LiveRanges by variable name
     map<string, vector<set<int>>> varRanges;
     for (const auto& lr : liveRanges) {
         varRanges[lr.variableName].push_back(lr.lines);
     }
 
-    // Passo 2: Para cada variável, fundir os ranges que se intersetam
+    // Step 2: For each variable, merge ranges that intersect
     for (auto& pair : varRanges) {
         string varName = pair.first;
         vector<set<int>>& ranges = pair.second;
@@ -28,7 +28,7 @@ void Graph::buildWebs(const vector<LiveRange>& liveRanges) {
             for (size_t i = 0; i < ranges.size(); ++i) {
                 for (size_t j = i + 1; j < ranges.size(); ++j) {
                     
-                    // Verificar se existe interseção (partilham alguma linha?)
+                    // Check if there is an intersection (do they share any line?)
                     bool intersect = false;
                     for (int line : ranges[i]) {
                         if (ranges[j].find(line) != ranges[j].end()) {
@@ -38,19 +38,19 @@ void Graph::buildWebs(const vector<LiveRange>& liveRanges) {
                     }
                     
                     if (intersect) {
-                        // Fundir o range j no range i
+                        // Merge range j into range i
                         ranges[i].insert(ranges[j].begin(), ranges[j].end());
-                        // Apagar o range j (pois já foi fundido)
+                        // Erase range j (it has been merged)
                         ranges.erase(ranges.begin() + j);
                         merged = true;
-                        break; // Quebra o ciclo interno e recomeça (os índices mudaram)
+                        break; // Break inner loop and restart (indices changed)
                     }
                 }
                 if (merged) break; // Recomeça o ciclo 'do-while'
             }
         } while (merged);
 
-        // Passo 3: Transformar os ranges finais (já fundidos) em Webs reais
+        // Step 3: Transform the final (merged) ranges into actual Webs
         for (const auto& r : ranges) {
             Web newWeb;
             newWeb.id = webCounter++;
@@ -63,11 +63,11 @@ void Graph::buildWebs(const vector<LiveRange>& liveRanges) {
 
 void Graph::buildInterferences() {
     for (size_t i = 0; i < webs.size(); ++i) {
-        // Garantir que a Web existe na lista de adjacências, mesmo que não tenha arestas (grau 0)
+        // Ensure the Web exists in the adjacency list, even if it has no edges (degree 0)
         adjList[webs[i].id]; 
         
         for (size_t j = i + 1; j < webs.size(); ++j) {
-            // Verificar se interferem usando o método prático que criámos no DataTypes.h
+            // Check interference using the helper method defined in DataTypes.h
             if (webs[i].interferesWith(webs[j])) {
                 // Adicionar a aresta em ambas as direções (grafo não direcionado)
                 adjList[webs[i].id].insert(webs[j].id);
@@ -78,11 +78,11 @@ void Graph::buildInterferences() {
 }
 
 void Graph::printGraph() const {
-    cout << "\n=== Grafo de Interferencia (Webs: " << webs.size() << ") ===" << endl;
+    cout << "\n=== Interference Graph (Webs: " << webs.size() << ") ===" << endl;
     for (const auto& web : webs) {
         cout << "Web " << web.id << " (" << web.variableName << "): [ ";
         for (int line : web.lines) cout << line << " ";
-        cout << "] -> Interfere com: { ";
+        cout << "] -> Interferes with: { ";
         for (int neighbor : adjList.at(web.id)) {
             cout << "Web" << neighbor << " ";
         }

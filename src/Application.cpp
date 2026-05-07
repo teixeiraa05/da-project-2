@@ -9,7 +9,7 @@ using namespace std;
 Application::Application(int argc, char* argv[]) {
     isBatchMode = false;
     
-    // Verifica o formato exigido: myProg -b ranges.txt registers.txt allocation.txt
+    // Verify required format: myProg -b ranges.txt registers.txt allocation.txt
     if (argc >= 5 && string(argv[1]) == "-b") {
         isBatchMode = true;
         rangesFile = argv[2];
@@ -17,8 +17,8 @@ Application::Application(int argc, char* argv[]) {
         outputFile = argv[4];
     } 
     else if (argc > 1 && string(argv[1]) == "-b") {
-        cerr << "Erro: Argumentos insuficientes para o modo batch." << endl;
-        cerr << "Uso correto: ./myProg -b <ranges.txt> <registers.txt> <allocation.txt>" << endl;
+        cerr << "Error: Insufficient arguments for batch mode." << endl;
+        cerr << "Usage: ./myProg -b <ranges.txt> <registers.txt> <allocation.txt>" << endl;
         exit(1);
     }
 }
@@ -32,14 +32,14 @@ void Application::run() {
 }
 
 void Application::runBatchMode() {
-    cout << "A iniciar execucao em modo Batch..." << endl;
+    cout << "Starting batch execution..." << endl;
     
     Parser parser(rangesFile, registersFile);
     ConfigRegisters config = parser.parseRegistersFile();
     vector<LiveRange> ranges = parser.parseRangesFile();
     
     if (ranges.empty()) {
-        cerr << "Erro: Nenhuma range lida. A terminar." << endl;
+        cerr << "Error: No ranges read. Exiting." << endl;
         return;
     }
 
@@ -62,25 +62,25 @@ void Application::runInteractiveMode() {
 
         switch (choice) {
             case 1:
-                cout << "Indique o caminho do ficheiro ranges: ";
+                cout << "Enter path to ranges file: ";
                 cin >> rangesFile;
-                cout << "Indique o caminho do ficheiro registers: ";
+                cout << "Enter path to registers file: ";
                 cin >> registersFile;
-                cout << "Indique o caminho do ficheiro de output a gerar: ";
+                cout << "Enter path for the output file to generate: ";
                 cin >> outputFile;
                 break;
             case 2:
                 if (rangesFile.empty() || registersFile.empty() || outputFile.empty()) {
-                    cerr << "Erro: Por favor defina os ficheiros primeiro (Opcao 1)." << endl;
+                    cerr << "Error: Please set input and output files first (Option 1)." << endl;
                 } else {
-                    cout << "\n--- A executar pipeline de alocacao ---" << endl;
+                    cout << "\n--- Running allocation pipeline ---" << endl;
                     Parser parser(rangesFile, registersFile);
                     ConfigRegisters config = parser.parseRegistersFile();
                     vector<LiveRange> ranges = parser.parseRangesFile();
                     
                     if (!ranges.empty()) {
                         Graph graph(ranges);
-                        graph.printGraph(); // Mostra o grafo no terminal para vermos a magia a acontecer
+                        graph.printGraph(); // Print the graph to the terminal so we can see the allocation process
                         
                         Allocator allocator(graph, config);
                         allocator.run();
@@ -89,18 +89,18 @@ void Application::runInteractiveMode() {
                 }
                 break;
             case 0:
-                cout << "A sair da aplicacao..." << endl;
+                cout << "Exiting application..." << endl;
                 break;
             default:
-                cerr << "Opcao invalida. Tente novamente." << endl;
+                cerr << "Invalid option. Please try again." << endl;
         }
     } while (choice != 0);
 }
 
 void Application::showMenu() {
-    cout << "\n=== Ferramenta de Alocacao de Registos ===" << endl;
-    cout << "1. Definir ficheiros de input e output" << endl;
-    cout << "2. Executar alocacao de registos" << endl;
-    cout << "0. Sair" << endl;
-    cout << "Escolha uma opcao: ";
+    cout << "\n=== Register Allocation Tool ===" << endl;
+    cout << "1. Set input and output files" << endl;
+    cout << "2. Run register allocation" << endl;
+    cout << "0. Exit" << endl;
+    cout << "Choose an option: ";
 }

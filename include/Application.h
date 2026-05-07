@@ -16,10 +16,10 @@ private:
     void showMenu();
 
 public:
-    // Construtor que recebe os argumentos do main
+    // Constructor that receives the arguments from main
     Application(int argc, char* argv[]);
     
-    // Método principal para arrancar o programa
+    // Main method to start the application
     void run();
 };
 
