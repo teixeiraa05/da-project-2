@@ -281,10 +281,15 @@ bool Allocator::runSplittingAllocation() {
         int half = original.lines.size() / 2;
         int count = 0;
         for (int line : original.lines) {
-            if (count < half)
+            if (count < half) {
                 w1.lines.insert(line);
-            else
+                if (original.defLines.find(line) != original.defLines.end()) w1.defLines.insert(line);
+                if (original.useEndLines.find(line) != original.useEndLines.end()) w1.useEndLines.insert(line);
+            } else {
                 w2.lines.insert(line);
+                if (original.defLines.find(line) != original.defLines.end()) w2.defLines.insert(line);
+                if (original.useEndLines.find(line) != original.useEndLines.end()) w2.useEndLines.insert(line);
+            }
             count++;
         }
 
@@ -422,17 +427,26 @@ bool Allocator::runFreeAllocation() {
             int half = original.lines.size() / 2;
             int count = 0;
             for (int line : original.lines) {
-                if (count < half)
+                if (count < half) {
                     w1.lines.insert(line);
-                else
+                    if (original.defLines.find(line) != original.defLines.end())
+                        w1.defLines.insert(line);
+                    if (original.useEndLines.find(line) != original.useEndLines.end())
+                        w1.useEndLines.insert(line);
+                } else {
                     w2.lines.insert(line);
+                    if (original.defLines.find(line) != original.defLines.end())
+                        w2.defLines.insert(line);
+                    if (original.useEndLines.find(line) != original.useEndLines.end())
+                        w2.useEndLines.insert(line);
+                }
                 count++;
             }
 
             finalWebs.push_back(w1);
             finalWebs.push_back(w2);
             splitsUsed++;
-            cout << "-> [Modo Free] Splitting aplicado na Web " << original.id << endl;
+            cout << "-> [Free Mode] Splitting applied on the Web " << original.id << endl;
             continue;  // Recomeça o ciclo com as novas webs!
         }
 
@@ -454,7 +468,7 @@ bool Allocator::runFreeAllocation() {
 
         if (nodeToSpillId != -1) {
             spilledWebs.insert(nodeToSpillId);  // Atira para a lista negra da memória
-            cout << "-> [Modo Free] Spilling aplicado na Web " << nodeToSpillId << endl;
+            cout << "-> [Free Mode] Spilling applied on the Web " << nodeToSpillId << endl;
             continue;  // Recomeça o ciclo!
         }
 
@@ -466,6 +480,13 @@ void Allocator::generateOutputFile(const string& filename) const {
     ofstream file(filename);
     if (!file.is_open()) return;
 
+    set<int> usedRegisters;
+    for (const auto& pair : allocation) {
+        if (pair.second >= 0) {
+            usedRegisters.insert(pair.second);
+        }
+    }
+
     file << "# Total number of webs followed by the listing of the program points of each one\n";
     file << "# program points in each web are sorted in ascending order\n";
     file << "webs: " << finalWebs.size() << "\n";  // Usa as webs finais!
@@ -476,13 +497,22 @@ void Allocator::generateOutputFile(const string& filename) const {
         for (int line : web.lines) {
             if (!first) file << ",";
             file << line;
+
+            const bool isDef = (web.defLines.find(line) != web.defLines.end());
+            const bool isLastUse = (web.useEndLines.find(line) != web.useEndLines.end());
+            // Suppress merged boundary points that became both def and last-use on the same line.
+            if (!(isDef && isLastUse)) {
+                if (isDef) file << "+";
+                if (isLastUse) file << "-";
+            }
+
             first = false;
         }
         file << "\n";
     }
 
     file << "# Total number of registers used, followed by assignment to webs\n";
-    file << "registers: " << (isFeasible ? config.numRegisters : 0) << "\n";
+    file << "registers: " << usedRegisters.size() << "\n";
 
     for (const auto& web : finalWebs) {
         int reg = allocation.at(web.id);
@@ -493,5 +523,5 @@ void Allocator::generateOutputFile(const string& filename) const {
     }
 
     file.close();
-    cout << "Resultados exportados para: " << filename << endl;
+    cout << "Results exported to: " << filename << endl;
 }
