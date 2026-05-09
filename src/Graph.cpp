@@ -8,38 +8,41 @@ Graph::Graph(const vector<LiveRange>& liveRanges) {
     buildInterferences();
 }
 
+// Helper method to check if two live ranges intersect (share at least one line)
+bool Graph::rangesIntersect(const LiveRange& a, const LiveRange& b) {
+    for (int line : a.lines) {
+        if (b.lines.find(line) != b.lines.end()) {
+            return true;
+        }
+    }
+    return false;
+}
+
 void Graph::buildWebs(const vector<LiveRange>& liveRanges) {
     int webCounter = 0;
     
     // Step 1: Group LiveRanges by variable name
-    map<string, vector<set<int>>> varRanges;
+    map<string, vector<LiveRange>> varRanges;
     for (const auto& lr : liveRanges) {
-        varRanges[lr.variableName].push_back(lr.lines);
+        varRanges[lr.variableName].push_back(lr);
     }
 
     // Step 2: For each variable, merge ranges that intersect
     for (auto& pair : varRanges) {
         string varName = pair.first;
-        vector<set<int>>& ranges = pair.second;
+        vector<LiveRange>& ranges = pair.second;
 
         bool merged;
         do {
             merged = false;
             for (size_t i = 0; i < ranges.size(); ++i) {
                 for (size_t j = i + 1; j < ranges.size(); ++j) {
-                    
-                    // Check if there is an intersection (do they share any line?)
-                    bool intersect = false;
-                    for (int line : ranges[i]) {
-                        if (ranges[j].find(line) != ranges[j].end()) {
-                            intersect = true;
-                            break;
-                        }
-                    }
-                    
-                    if (intersect) {
+
+                    if (rangesIntersect(ranges[i], ranges[j])) {
                         // Merge range j into range i
-                        ranges[i].insert(ranges[j].begin(), ranges[j].end());
+                        ranges[i].lines.insert(ranges[j].lines.begin(), ranges[j].lines.end());
+                        ranges[i].defLines.insert(ranges[j].defLines.begin(), ranges[j].defLines.end());
+                        ranges[i].useEndLines.insert(ranges[j].useEndLines.begin(), ranges[j].useEndLines.end());
                         // Erase range j (it has been merged)
                         ranges.erase(ranges.begin() + j);
                         merged = true;
@@ -55,7 +58,9 @@ void Graph::buildWebs(const vector<LiveRange>& liveRanges) {
             Web newWeb;
             newWeb.id = webCounter++;
             newWeb.variableName = varName;
-            newWeb.lines = r;
+            newWeb.lines = r.lines;
+            newWeb.defLines = r.defLines;
+            newWeb.useEndLines = r.useEndLines;
             webs.push_back(newWeb);
         }
     }

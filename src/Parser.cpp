@@ -7,28 +7,61 @@
 
 using namespace std;
 
+struct ParsedRangeToken {
+    int line = -1;
+    bool isDefinition = false;
+    bool isLastUse = false;
+};
+
+bool parseRangeToken(const string& rawToken, ParsedRangeToken& parsed, string& errorMsg) {
+    string token = rawToken;
+    token.erase(remove_if(token.begin(), token.end(), ::isspace), token.end());
+
+    if (token.empty()) {
+        errorMsg = "empty token";
+        return false;
+    }
+
+    size_t plusCount = count(token.begin(), token.end(), '+');
+    size_t minusCount = count(token.begin(), token.end(), '-');
+
+    if (plusCount > 1 || minusCount > 1 || (plusCount == 1 && minusCount == 1)) {
+        errorMsg = "token contains invalid marker combination";
+        return false;
+    }
+
+    size_t markerPos = token.find_first_of("+-");
+    if (markerPos != string::npos && markerPos != token.size() - 1) {
+        errorMsg = "marker must appear only at the end of token";
+        return false;
+    }
+
+    string linePart = (markerPos == string::npos) ? token : token.substr(0, markerPos);
+    if (linePart.empty()) {
+        errorMsg = "missing line number";
+        return false;
+    }
+
+    if (!all_of(linePart.begin(), linePart.end(), ::isdigit)) {
+        errorMsg = "line number must contain only digits";
+        return false;
+    }
+
+    parsed.line = stoi(linePart);
+    parsed.isDefinition = (markerPos != string::npos && token[markerPos] == '+');
+    parsed.isLastUse = (markerPos != string::npos && token[markerPos] == '-');
+    return true;
+}
+
 // Constructor
 Parser::Parser(const std::string& rangesPath, const std::string& registersPath) {
     rangesFilePath = rangesPath;
     registersFilePath = registersPath;
 }
 
-// --- HELPER FUNCTION ---
-// Cleans a token like "12+" or "14-" returning only the integer 12 or 14
-int cleanLineNumber(const string& token) {
-    string cleanStr = "";
-    for (char c : token) {
-        if (isdigit(c)) {
-            cleanStr += c;
-        }
-    }
-    if (cleanStr.empty()) return -1;
-    return stoi(cleanStr);
-}
-
 // --- REGISTERS PARSER ---
 ConfigRegisters Parser::parseRegistersFile() {
-    ConfigRegisters config = {0, "basic", 0}; // Valores por defeito
+    ConfigRegisters config = {0, "basic", 0}; // Default values
     ifstream file(registersFilePath);
     
     if (!file.is_open()) {
@@ -87,8 +120,10 @@ vector<LiveRange> Parser::parseRangesFile() {
 
     string line;
     string currentVarName = "";
+    int fileLineNumber = 0;
 
     while (getline(file, line)) {
+        ++fileLineNumber;
         // Ignore empty lines and comments
         if (line.empty() || line[0] == '#') continue;
 
@@ -113,9 +148,20 @@ vector<LiveRange> Parser::parseRangesFile() {
         stringstream ss(rangesPart);
         string token;
         while (getline(ss, token, ',')) {
-            int lineNum = cleanLineNumber(token);
-            if (lineNum != -1) {
-                lr.lines.insert(lineNum);
+            ParsedRangeToken parsedToken;
+            string parseError;
+            if (!parseRangeToken(token, parsedToken, parseError)) {
+                cerr << "Error: Invalid ranges token '" << token << "' at line "
+                     << fileLineNumber << " (" << parseError << ")" << endl;
+                return {};
+            }
+
+            lr.lines.insert(parsedToken.line);
+            if (parsedToken.isDefinition) {
+                lr.defLines.insert(parsedToken.line);
+            }
+            if (parsedToken.isLastUse) {
+                lr.useEndLines.insert(parsedToken.line);
             }
         }
 

@@ -9,8 +9,10 @@
  * @brief Represents a live range segment of a variable read directly from the input file.
  */
 struct LiveRange {
-    std::string variableName; /**< @brief Nome da variavel original (ex: "sum", "i"). */
-    std::set<int> lines;      /**< @brief Conjunto ordenado e unico de linhas de execucao onde a variavel esta ativa. */
+    std::string variableName; /**< @brief Original variable name (e.g., "sum", "i"). */
+    std::set<int> lines;      /**< @brief Ordered unique set of program lines where the variable is alive. */
+    std::set<int> defLines;   /**< @brief Lines where the variable is defined ('+' marker). */
+    std::set<int> useEndLines;/**< @brief Lines of the variable's last use ('-' marker). */
 };
 
 /**
@@ -18,9 +20,11 @@ struct LiveRange {
  * @details Each instance of this structure acts as a node in the Interference Graph.
  */
 struct Web {
-    int id;                   /**< @brief Identificador unico e numerico da Web (ex: 0 para web0). */
-    std::string variableName; /**< @brief Nome da variavel a que este bloco de tempo de vida pertence. */
-    std::set<int> lines;      /**< @brief Todas as linhas de execucao fundidas num unico conjunto ordenado. */
+    int id;                   /**< @brief Unique numeric Web identifier (e.g., 0 for web0). */
+    std::string variableName; /**< @brief Variable name associated with this live-range block. */
+    std::set<int> lines;      /**< @brief All merged program lines for this Web, kept sorted and unique. */
+    std::set<int> defLines;   /**< @brief Definition lines for this Web. */
+    std::set<int> useEndLines;/**< @brief Last-use lines for this Web. */
     
     /**
      * @brief Checks whether the current Web interferes with another provided Web.
@@ -33,7 +37,18 @@ struct Web {
     bool interferesWith(const Web& other) const {
         for (int line : lines) {
             if (other.lines.find(line) != other.lines.end()) {
-                return true; // They share at least one line
+                const bool thisStartsHere = defLines.find(line) != defLines.end();
+                const bool otherEndsHere = other.useEndLines.find(line) != other.useEndLines.end();
+                const bool otherStartsHere = other.defLines.find(line) != other.defLines.end();
+                const bool thisEndsHere = useEndLines.find(line) != useEndLines.end();
+
+                // Exception: definition at X does not interfere with a last use at X.
+                const bool boundaryException =
+                    (thisStartsHere && otherEndsHere) || (otherStartsHere && thisEndsHere);
+
+                if (!boundaryException) {
+                    return true;
+                }
             }
         }
         return false;

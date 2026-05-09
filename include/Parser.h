@@ -41,7 +41,9 @@ public:
     
     /**
      * @brief Parses the live ranges file.
-     * @details Reads each variable, ignores isolated markers like "+" or "-", and stores the raw live-range blocks.
+        * @details Reads each variable and stores raw live-range blocks with marker metadata:
+        * '+' marks definition points and '-' marks last-use points.
+        * Invalid tokens (including combinations like '+-') are reported as errors.
      * @return std::vector<LiveRange> Clean list containing all live-range blocks ready for grouping.
      * @note Time complexity: O(L * T log T), where L is the number of lines in the file and T is the number of temporal markers on a line (due to std::set lookups).
      */
