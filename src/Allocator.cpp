@@ -64,6 +64,41 @@ bool Allocator::spillNode(const std::map<int, std::set<int>>& originalAdjList,
     return true;
 }
 
+bool Allocator::simplifyFindAndRemove(const std::map<int, std::set<int>>& adjList,
+                                      std::map<int, bool>& inGraph,
+                                      int N,
+                                      std::stack<int>& S,
+                                      int& nodesRemaining) {
+    for (const auto& pair : adjList) {
+        if (!inGraph[pair.first]) continue;
+        int degree = 0;
+        for (int neighbor : pair.second) if (inGraph[neighbor]) degree++;
+        if (degree < N) {
+            inGraph[pair.first] = false;
+            S.push(pair.first);
+            nodesRemaining--;
+            return true;
+        }
+    }
+    return false;
+}
+
+void Allocator::rebuildAdjacency(std::map<int, std::set<int>>& outAdj, const std::set<int>* skipWebs) const {
+    for (size_t i = 0; i < finalWebs.size(); ++i) {
+        int id1 = finalWebs[i].id;
+        if (skipWebs && skipWebs->count(id1)) continue;
+        outAdj[id1];  // Ensure entry exists
+        for (size_t j = i + 1; j < finalWebs.size(); ++j) {
+            int id2 = finalWebs[j].id;
+            if (skipWebs && skipWebs->count(id2)) continue;
+            if (finalWebs[i].interferesWith(finalWebs[j])) {
+                outAdj[id1].insert(id2);
+                outAdj[id2].insert(id1);
+            }
+        }
+    }
+}
+
 bool Allocator::runBasicAllocation() {
     int N = config.numRegisters;
     const auto& originalAdjList = graph.getAdjList();
@@ -75,21 +110,7 @@ bool Allocator::runBasicAllocation() {
 
     while (nodesRemaining > 0) {
         bool found = false;
-        for (const auto& pair : originalAdjList) {
-            if (!inGraph[pair.first]) continue;
-
-            int degree = 0;
-            for (int neighbor : pair.second)
-                if (inGraph[neighbor]) degree++;
-
-            if (degree < N) {
-                inGraph[pair.first] = false;
-                S.push(pair.first);
-                nodesRemaining--;
-                found = true;
-                break;
-            }
-        }
+        found = simplifyFindAndRemove(originalAdjList, inGraph, N, S, nodesRemaining);
 
         // If no node has degree < N, choose one node to spill and keep simplifying.
         if (!found) {
@@ -129,21 +150,7 @@ bool Allocator::runSpillingAllocation() {
     stack<int> S;
 
     while (nodesRemaining > 0) {
-        bool found = false;
-        for (const auto& pair : originalAdjList) {
-            if (!inGraph[pair.first]) continue;
-            int degree = 0;
-            for (int neighbor : pair.second)
-                if (inGraph[neighbor]) degree++;
-
-            if (degree < N) {
-                inGraph[pair.first] = false;
-                S.push(pair.first);
-                nodesRemaining--;
-                found = true;
-                break;
-            }
-        }
+            bool found = simplifyFindAndRemove(originalAdjList, inGraph, N, S, nodesRemaining);
 
         if (!found) {
             if (spillsUsed >= maxSpills) return false;
@@ -181,15 +188,7 @@ bool Allocator::runSplittingAllocation() {
     while (true) {
         // 1. Rebuild the local adjacency list for the current webs.
         map<int, set<int>> currentAdjList;
-        for (size_t i = 0; i < finalWebs.size(); ++i) {
-            currentAdjList[finalWebs[i].id];  // Ensure the web exists in the map.
-            for (size_t j = i + 1; j < finalWebs.size(); ++j) {
-                if (finalWebs[i].interferesWith(finalWebs[j])) {
-                    currentAdjList[finalWebs[i].id].insert(finalWebs[j].id);
-                    currentAdjList[finalWebs[j].id].insert(finalWebs[i].id);
-                }
-            }
-        }
+        rebuildAdjacency(currentAdjList, nullptr);
 
         // 2. Try to simplify (as in Basic).
         map<int, bool> inGraph;
@@ -199,21 +198,7 @@ bool Allocator::runSplittingAllocation() {
         bool stuck = false;
 
         while (nodesRemaining > 0) {
-            bool found = false;
-            for (const auto& pair : currentAdjList) {
-                if (!inGraph[pair.first]) continue;
-                int degree = 0;
-                for (int neighbor : pair.second)
-                    if (inGraph[neighbor]) degree++;
-
-                if (degree < N) {
-                    inGraph[pair.first] = false;
-                    S.push(pair.first);
-                    nodesRemaining--;
-                    found = true;
-                    break;
-                }
-            }
+            bool found = simplifyFindAndRemove(currentAdjList, inGraph, N, S, nodesRemaining);
 
             if (!found) {
                 stuck = true;
@@ -317,21 +302,7 @@ bool Allocator::runFreeAllocation() {
     while (true) {
         // 1. Rebuild the adjacency list, ignoring the webs already moved to memory.
         map<int, set<int>> currentAdjList;
-        for (size_t i = 0; i < finalWebs.size(); ++i) {
-            int id1 = finalWebs[i].id;
-            if (spilledWebs.count(id1)) continue;  // Ignore the webs already sacrificed.
-
-            currentAdjList[id1];
-            for (size_t j = i + 1; j < finalWebs.size(); ++j) {
-                int id2 = finalWebs[j].id;
-                if (spilledWebs.count(id2)) continue;
-
-                if (finalWebs[i].interferesWith(finalWebs[j])) {
-                    currentAdjList[id1].insert(id2);
-                    currentAdjList[id2].insert(id1);
-                }
-            }
-        }
+        rebuildAdjacency(currentAdjList, &spilledWebs);
 
         // 2. Simplification phase.
         map<int, bool> inGraph;
@@ -347,21 +318,7 @@ bool Allocator::runFreeAllocation() {
         bool stuck = false;
 
         while (nodesRemaining > 0) {
-            bool found = false;
-            for (const auto& pair : currentAdjList) {
-                if (!inGraph[pair.first]) continue;
-                int degree = 0;
-                for (int neighbor : pair.second)
-                    if (inGraph[neighbor]) degree++;
-
-                if (degree < N) {
-                    inGraph[pair.first] = false;
-                    S.push(pair.first);
-                    nodesRemaining--;
-                    found = true;
-                    break;
-                }
-            }
+            bool found = simplifyFindAndRemove(currentAdjList, inGraph, N, S, nodesRemaining);
             if (!found) {
                 stuck = true;
                 break;

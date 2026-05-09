@@ -5,6 +5,7 @@
 #include "Parser.h"
 #include <map>
 #include <set>
+#include <stack>
 #include <string>
 #include <vector>
 
@@ -32,6 +33,17 @@ private:
     bool runBasicAllocation();
 
     /**
+     * @brief Simplification step: find a node with degree < N, remove it from the graph,
+     * push it onto the stack and decrement the remaining node count.
+     * @return true if a node was removed; false otherwise.
+     */
+    bool simplifyFindAndRemove(const std::map<int, std::set<int>>& adjList,
+                               std::map<int, bool>& inGraph,
+                               int N,
+                               std::stack<int>& S,
+                               int& nodesRemaining);
+
+    /**
      * @brief Selects and removes one spill candidate from the current simplification graph.
      * @param originalAdjList Interference adjacency list used for degree computation.
      * @param inGraph Marks whether each node is currently active in simplification.
@@ -44,6 +56,13 @@ private:
                    std::map<int, bool>& inGraph,
                    int& nodesRemaining,
                    int& spilledNodeId);
+
+    /**
+     * @brief Rebuilds the adjacency list for the current `finalWebs` set.
+     * @param outAdj Output adjacency list mapping web id -> neighbor ids.
+     * @param skipWebs Optional pointer to a set of web ids to ignore (e.g., spilled webs). If nullptr, no webs are skipped.
+     */
+    void rebuildAdjacency(std::map<int, std::set<int>>& outAdj, const std::set<int>* skipWebs = nullptr) const;
 
     /**
      * @brief Coloring algorithm which, when stuck, sacrifices (spills) the Web with highest interference degree.
