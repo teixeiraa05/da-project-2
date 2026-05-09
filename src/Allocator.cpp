@@ -11,7 +11,7 @@ using namespace std;
 Allocator::Allocator(const Graph& g, const ConfigRegisters& c) : graph(g), config(c) {
     isFeasible = true;
     finalWebs =
-        graph.getWebs();  // Copiamos as webs originais para podermos alterá-las no splitting
+        graph.getWebs();  // Copy the original webs so they can be modified during splitting.
 
     for (const auto& web : finalWebs) {
         allocation[web.id] = -1;
@@ -25,7 +25,7 @@ void Allocator::run() {
         isFeasible = runSpillingAllocation();
     } else if (config.algorithm == "splitting") {
         isFeasible = runSplittingAllocation();
-    } else if (config.algorithm == "free") {  // O NOSSO NOVO ALGORITMO
+    } else if (config.algorithm == "free") {  // Our custom algorithm.
         isFeasible = runFreeAllocation();
     }
 
@@ -39,9 +39,7 @@ void Allocator::run() {
 }
 
 bool Allocator::spillNode(const std::map<int, std::set<int>>& originalAdjList,
-                         std::map<int, bool>& inGraph,
-                         int& nodesRemaining,
-                         int& spilledNodeId) {
+                          std::map<int, bool>& inGraph, int& nodesRemaining, int& spilledNodeId) {
     spilledNodeId = -1;
     int maxDegree = -1;
 
@@ -119,7 +117,7 @@ bool Allocator::runBasicAllocation() {
 }
 
 bool Allocator::runSpillingAllocation() {
-    // Igual ao que já tinhas, adaptado para usar finalWebs
+    // Same as before, adapted to use finalWebs.
     int N = config.numRegisters;
     int maxSpills = config.k_param;
     int spillsUsed = 0;
@@ -179,12 +177,12 @@ bool Allocator::runSplittingAllocation() {
     int splitsUsed = 0;
     int N = config.numRegisters;
 
-    // Ciclo principal: Tenta colorir, se falhar faz 1 split e RECOMEÇA tudo!
+    // Main loop: try to color the graph, and if it fails, perform one split and restart.
     while (true) {
-        // 1. Reconstruir a lista de adjacências local para as webs atuais
+        // 1. Rebuild the local adjacency list for the current webs.
         map<int, set<int>> currentAdjList;
         for (size_t i = 0; i < finalWebs.size(); ++i) {
-            currentAdjList[finalWebs[i].id];  // Garante que a web existe no map
+            currentAdjList[finalWebs[i].id];  // Ensure the web exists in the map.
             for (size_t j = i + 1; j < finalWebs.size(); ++j) {
                 if (finalWebs[i].interferesWith(finalWebs[j])) {
                     currentAdjList[finalWebs[i].id].insert(finalWebs[j].id);
@@ -193,7 +191,7 @@ bool Allocator::runSplittingAllocation() {
             }
         }
 
-        // 2. Tentar simplificar (como no Basic)
+        // 2. Try to simplify (as in Basic).
         map<int, bool> inGraph;
         int nodesRemaining = finalWebs.size();
         for (const auto& web : finalWebs) inGraph[web.id] = true;
@@ -223,10 +221,10 @@ bool Allocator::runSplittingAllocation() {
             }
         }
 
-        // 3. Se não encravou, podemos colorir e terminar com sucesso!
+        // 3. If we did not get stuck, we can color the graph and finish successfully.
         if (!stuck) {
             allocation.clear();
-            for (const auto& web : finalWebs) allocation[web.id] = -1;  // reset
+            for (const auto& web : finalWebs) allocation[web.id] = -1;  // Reset.
 
             while (!S.empty()) {
                 int n = S.top();
@@ -245,10 +243,10 @@ bool Allocator::runSplittingAllocation() {
             return true;
         }
 
-        // 4. Se encravou, TEMOS DE FAZER SPLIT!
-        if (splitsUsed >= maxSplits) return false;  // Esgotámos os splits
+        // 4. If we got stuck, we must split.
+        if (splitsUsed >= maxSplits) return false;  // We have exhausted the splits.
 
-        // Procurar a Web com maior grau que tenha pelo menos 2 linhas
+        // Find the web with the highest degree that has at least 2 lines.
         int nodeToSplitId = -1, maxDegree = -1, splitIdx = -1;
         for (size_t i = 0; i < finalWebs.size(); ++i) {
             int id = finalWebs[i].id;
@@ -260,14 +258,14 @@ bool Allocator::runSplittingAllocation() {
             }
         }
 
-        if (nodeToSplitId == -1) return false;  // Nenhuma Web divisível
+        if (nodeToSplitId == -1) return false;  // No splittable web found.
 
-        // Executar o corte
+        // Perform the split.
         Web original = finalWebs[splitIdx];
-        finalWebs.erase(finalWebs.begin() + splitIdx);  // Remove a original
+        finalWebs.erase(finalWebs.begin() + splitIdx);  // Remove the original web.
 
         Web w1, w2;
-        // Descobrir o próximo ID livre
+        // Find the next available ID.
         int nextId = 0;
         for (const auto& w : finalWebs)
             if (w.id >= nextId) nextId = w.id + 1;
@@ -277,18 +275,22 @@ bool Allocator::runSplittingAllocation() {
         w1.variableName = original.variableName;
         w2.variableName = original.variableName;
 
-        // Dividir as linhas a meio
+        // Split the lines in half.
         int half = original.lines.size() / 2;
         int count = 0;
         for (int line : original.lines) {
             if (count < half) {
                 w1.lines.insert(line);
-                if (original.defLines.find(line) != original.defLines.end()) w1.defLines.insert(line);
-                if (original.useEndLines.find(line) != original.useEndLines.end()) w1.useEndLines.insert(line);
+                if (original.defLines.find(line) != original.defLines.end())
+                    w1.defLines.insert(line);
+                if (original.useEndLines.find(line) != original.useEndLines.end())
+                    w1.useEndLines.insert(line);
             } else {
                 w2.lines.insert(line);
-                if (original.defLines.find(line) != original.defLines.end()) w2.defLines.insert(line);
-                if (original.useEndLines.find(line) != original.useEndLines.end()) w2.useEndLines.insert(line);
+                if (original.defLines.find(line) != original.defLines.end())
+                    w2.defLines.insert(line);
+                if (original.useEndLines.find(line) != original.useEndLines.end())
+                    w2.useEndLines.insert(line);
             }
             count++;
         }
@@ -297,27 +299,27 @@ bool Allocator::runSplittingAllocation() {
         finalWebs.push_back(w2);
         splitsUsed++;
 
-        cout << "-> Splitting aplicado na Web " << original.id << " (Cortada em Web " << w1.id
-             << " e Web " << w2.id << ")" << endl;
+        cout << "-> Splitting applied to Web " << original.id << " (split into Web " << w1.id
+             << " and Web " << w2.id << ")" << endl;
 
-        // O ciclo while(true) repete e tenta alocar novamente o novo grafo!
+        // The while(true) loop repeats and tries to allocate the new graph again.
     }
 }
 
 bool Allocator::runFreeAllocation() {
     int N = config.numRegisters;
-    int maxSplits = 3;  // O nosso orçamento interno de cortes
+    int maxSplits = 3;  // Our internal split budget.
     int splitsUsed = 0;
 
-    set<int> spilledWebs;  // Lista de webs que fomos forçados a atirar para a memória
+    set<int> spilledWebs;  // Webs that we were forced to move to memory.
 
-    // O ciclo principal que garante a sobrevivência do compilador
+    // Main loop that guarantees the compiler keeps going.
     while (true) {
-        // 1. Reconstruir a lista de adjacências (ignorando as webs que já foram para a memória)
+        // 1. Rebuild the adjacency list, ignoring the webs already moved to memory.
         map<int, set<int>> currentAdjList;
         for (size_t i = 0; i < finalWebs.size(); ++i) {
             int id1 = finalWebs[i].id;
-            if (spilledWebs.count(id1)) continue;  // Ignora as já sacrificadas
+            if (spilledWebs.count(id1)) continue;  // Ignore the webs already sacrificed.
 
             currentAdjList[id1];
             for (size_t j = i + 1; j < finalWebs.size(); ++j) {
@@ -331,7 +333,7 @@ bool Allocator::runFreeAllocation() {
             }
         }
 
-        // 2. Fase de Simplificação
+        // 2. Simplification phase.
         map<int, bool> inGraph;
         int nodesRemaining = 0;
         for (const auto& web : finalWebs) {
@@ -363,13 +365,13 @@ bool Allocator::runFreeAllocation() {
             if (!found) {
                 stuck = true;
                 break;
-            }  // Encravou!
+            }  // Stuck!
         }
 
-        // 3. Se não encravou, Coloração Final!
+        // 3. If we did not get stuck, perform the final coloring.
         if (!stuck) {
             allocation.clear();
-            for (const auto& web : finalWebs) allocation[web.id] = -1;  // Reset inicial
+            for (const auto& web : finalWebs) allocation[web.id] = -1;  // Initial reset.
 
             while (!S.empty()) {
                 int n = S.top();
@@ -386,10 +388,10 @@ bool Allocator::runFreeAllocation() {
                     }
                 }
             }
-            return true;  // Sucesso Absoluto!
+            return true;  // Absolute success!
         }
 
-        // 4. Se encravou -> PLANO A: Tentar o Splitting
+        // 4. If we got stuck -> PLAN A: try splitting.
         int nodeToSplitId = -1, maxDegreeSplit = -1, splitIdx = -1;
         if (splitsUsed < maxSplits) {
             for (size_t i = 0; i < finalWebs.size(); ++i) {
@@ -400,7 +402,7 @@ bool Allocator::runFreeAllocation() {
                 for (int neighbor : currentAdjList[id])
                     if (inGraph[neighbor]) degree++;
 
-                // Tem de ter a maior interferência E pelo menos 2 linhas de código
+                // It must have the highest interference and at least 2 code lines.
                 if (degree > maxDegreeSplit && finalWebs[i].lines.size() >= 2) {
                     maxDegreeSplit = degree;
                     nodeToSplitId = id;
@@ -410,7 +412,7 @@ bool Allocator::runFreeAllocation() {
         }
 
         if (nodeToSplitId != -1) {
-            // Executa o Splitting
+            // Execute the split.
             Web original = finalWebs[splitIdx];
             finalWebs.erase(finalWebs.begin() + splitIdx);
 
@@ -447,10 +449,10 @@ bool Allocator::runFreeAllocation() {
             finalWebs.push_back(w2);
             splitsUsed++;
             cout << "-> [Free Mode] Splitting applied on the Web " << original.id << endl;
-            continue;  // Recomeça o ciclo com as novas webs!
+            continue;  // Restart the loop with the new webs.
         }
 
-        // 5. Se o Splitting falhar ou esgotar -> PLANO B: Spilling
+        // 5. If splitting fails or runs out -> PLAN B: spilling.
         int nodeToSpillId = -1, maxDegreeSpill = -1;
         for (size_t i = 0; i < finalWebs.size(); ++i) {
             int id = finalWebs[i].id;
@@ -467,12 +469,12 @@ bool Allocator::runFreeAllocation() {
         }
 
         if (nodeToSpillId != -1) {
-            spilledWebs.insert(nodeToSpillId);  // Atira para a lista negra da memória
+            spilledWebs.insert(nodeToSpillId);  // Move it to memory.
             cout << "-> [Free Mode] Spilling applied on the Web " << nodeToSpillId << endl;
-            continue;  // Recomeça o ciclo!
+            continue;  // Restart the loop.
         }
 
-        return false;  // Nunca deve chegar aqui, mas por segurança.
+        return false;  // This should never be reached, but it is kept for safety.
     }
 }
 
@@ -489,7 +491,7 @@ void Allocator::generateOutputFile(const string& filename) const {
 
     file << "# Total number of webs followed by the listing of the program points of each one\n";
     file << "# program points in each web are sorted in ascending order\n";
-    file << "webs: " << finalWebs.size() << "\n";  // Usa as webs finais!
+    file << "webs: " << finalWebs.size() << "\n";  // Use the final webs.
 
     for (const auto& web : finalWebs) {
         file << "web" << web.id << ": ";
