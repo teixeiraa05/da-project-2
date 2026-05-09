@@ -1,38 +1,43 @@
 #ifndef DATATYPES_H
 #define DATATYPES_H
 
+#include <set>
 #include <string>
 #include <vector>
-#include <set>
 
 /**
  * @brief Represents a live range segment of a variable read directly from the input file.
  */
 struct LiveRange {
     std::string variableName; /**< @brief Original variable name (e.g., "sum", "i"). */
-    std::set<int> lines;      /**< @brief Ordered unique set of program lines where the variable is alive. */
-    std::set<int> defLines;   /**< @brief Lines where the variable is defined ('+' marker). */
-    std::set<int> useEndLines;/**< @brief Lines of the variable's last use ('-' marker). */
+    std::set<int>
+        lines; /**< @brief Ordered unique set of program lines where the variable is alive. */
+    std::set<int> defLines;    /**< @brief Lines where the variable is defined ('+' marker). */
+    std::set<int> useEndLines; /**< @brief Lines of the variable's last use ('-' marker). */
 };
 
 /**
- * @brief Represents a "Web", formed by the union of several overlapping LiveRanges of the same variable.
+ * @brief Represents a "Web", formed by the union of several overlapping LiveRanges of the same
+ * variable.
  * @details Each instance of this structure acts as a node in the Interference Graph.
  */
 struct Web {
     int id;                   /**< @brief Unique numeric Web identifier (e.g., 0 for web0). */
     std::string variableName; /**< @brief Variable name associated with this live-range block. */
-    std::set<int> lines;      /**< @brief All merged program lines for this Web, kept sorted and unique. */
-    std::set<int> defLines;   /**< @brief Definition lines for this Web. */
-    std::set<int> useEndLines;/**< @brief Last-use lines for this Web. */
-    
+    std::set<int>
+        lines; /**< @brief All merged program lines for this Web, kept sorted and unique. */
+    std::set<int> defLines;    /**< @brief Definition lines for this Web. */
+    std::set<int> useEndLines; /**< @brief Last-use lines for this Web. */
+
     /**
      * @brief Checks whether the current Web interferes with another provided Web.
-     * @details Two Webs interfere if their live ranges share at least one execution point (a common source line).
+     * @details Two Webs interfere if their live ranges share at least one execution point (a common
+     * source line).
      * @param other The other Web structure to test for line intersection.
      * @return true If the Webs share at least one source line (there is interference).
      * @return false If the Webs occur at completely disjoint times in the program.
-     * @note Time complexity: O(N log M), where N is the number of lines in the current Web and M is the number in 'other' (due to std::set lookups).
+     * @note Time complexity: O(N log M), where N is the number of lines in the current Web and M is
+     * the number in 'other' (due to std::set lookups).
      */
     bool interferesWith(const Web& other) const {
         for (int line : lines) {

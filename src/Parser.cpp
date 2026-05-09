@@ -8,6 +8,7 @@
 
 using namespace std;
 
+namespace {
 struct ParsedRangeToken {
     int line = -1;
     bool isDefinition = false;
@@ -53,6 +54,7 @@ bool parseRangeToken(const string& rawToken, ParsedRangeToken& parsed, string& e
     parsed.isLastUse = (markerPos != string::npos && token[markerPos] == '-');
     return true;
 }
+}  // namespace
 
 // Constructor
 Parser::Parser(const std::string& rangesPath, const std::string& registersPath) {
