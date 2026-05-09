@@ -4,6 +4,7 @@
 #include "Graph.h"
 #include "Parser.h"
 #include <map>
+#include <set>
 #include <string>
 #include <vector>
 
@@ -23,11 +24,26 @@ private:
     std::vector<Web> finalWebs;          /**< @brief Mutable copy of the Webs, required to allow splitting. */
 
     /**
-     * @brief Attempts to color the graph by repeatedly removing nodes with degree less than N (Chaitin's algorithm).
-     * @return true If it was possible to color the graph without resorting to Spilling/Splitting.
+        * @brief Attempts to color the graph by repeatedly removing nodes with degree less than N.
+        * @details When all remaining nodes have degree >= N, it selects a spill candidate and continues.
+        * @return true If allocation terminates successfully (possibly with spilled webs marked as memory).
      * @note Time complexity: O(W^2 + E), where W is the number of Webs and E the number of edges in the graph.
      */
     bool runBasicAllocation();
+
+    /**
+     * @brief Selects and removes one spill candidate from the current simplification graph.
+     * @param originalAdjList Interference adjacency list used for degree computation.
+     * @param inGraph Marks whether each node is currently active in simplification.
+     * @param nodesRemaining Counter of active nodes; decremented when a spill is applied.
+     * @param spilledNodeId Output parameter with the chosen node ID.
+     * @return true If a node was selected and removed.
+     * @return false If no active node was available.
+     */
+    bool spillNode(const std::map<int, std::set<int>>& originalAdjList,
+                   std::map<int, bool>& inGraph,
+                   int& nodesRemaining,
+                   int& spilledNodeId);
 
     /**
      * @brief Coloring algorithm which, when stuck, sacrifices (spills) the Web with highest interference degree.
