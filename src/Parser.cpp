@@ -1,9 +1,10 @@
 #include "../include/Parser.h"
-#include <iostream>
-#include <fstream>
-#include <sstream>
+
 #include <algorithm>
 #include <cctype>
+#include <fstream>
+#include <iostream>
+#include <sstream>
 
 using namespace std;
 
@@ -61,9 +62,9 @@ Parser::Parser(const std::string& rangesPath, const std::string& registersPath) 
 
 // --- REGISTERS PARSER ---
 ConfigRegisters Parser::parseRegistersFile() {
-    ConfigRegisters config = {0, "basic", 0}; // Default values
+    ConfigRegisters config = {0, "basic", 0};  // Default values
     ifstream file(registersFilePath);
-    
+
     if (!file.is_open()) {
         cerr << "Error: Could not open file " << registersFilePath << endl;
         return config;
@@ -79,18 +80,17 @@ ConfigRegisters Parser::parseRegistersFile() {
 
         string key = line.substr(0, colonPos);
         string valuePart = line.substr(colonPos + 1);
-        
+
         // Remover espaços da chave ("registers " -> "registers")
         key.erase(remove_if(key.begin(), key.end(), ::isspace), key.end());
 
         if (key == "registers") {
             config.numRegisters = stoi(valuePart);
-        } 
-        else if (key == "algorithm") {
+        } else if (key == "algorithm") {
             // Lidar com algo como " spilling, 2"
             stringstream ss(valuePart);
             string algoName;
-            
+
             // Read until the comma
             getline(ss, algoName, ',');
             algoName.erase(remove_if(algoName.begin(), algoName.end(), ::isspace), algoName.end());
@@ -103,7 +103,7 @@ ConfigRegisters Parser::parseRegistersFile() {
             }
         }
     }
-    
+
     file.close();
     return config;
 }
@@ -112,7 +112,7 @@ ConfigRegisters Parser::parseRegistersFile() {
 vector<LiveRange> Parser::parseRangesFile() {
     vector<LiveRange> liveRanges;
     ifstream file(rangesFilePath);
-    
+
     if (!file.is_open()) {
         cerr << "Error: Could not open file " << rangesFilePath << endl;
         return liveRanges;
@@ -138,7 +138,7 @@ vector<LiveRange> Parser::parseRangesFile() {
 
         // Update current variable name (if empty, keep previous)
         if (!varPart.empty()) {
-            currentVarName = varPart; 
+            currentVarName = varPart;
         }
 
         LiveRange lr;
@@ -151,8 +151,8 @@ vector<LiveRange> Parser::parseRangesFile() {
             ParsedRangeToken parsedToken;
             string parseError;
             if (!parseRangeToken(token, parsedToken, parseError)) {
-                cerr << "Error: Invalid ranges token '" << token << "' at line "
-                     << fileLineNumber << " (" << parseError << ")" << endl;
+                cerr << "Error: Invalid ranges token '" << token << "' at line " << fileLineNumber
+                     << " (" << parseError << ")" << endl;
                 return {};
             }
 
@@ -169,7 +169,7 @@ vector<LiveRange> Parser::parseRangesFile() {
             liveRanges.push_back(lr);
         }
     }
-    
+
     file.close();
     return liveRanges;
 }

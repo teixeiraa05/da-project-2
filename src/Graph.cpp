@@ -1,4 +1,5 @@
 #include "../include/Graph.h"
+
 #include <iostream>
 
 using namespace std;
@@ -20,7 +21,7 @@ bool Graph::rangesIntersect(const LiveRange& a, const LiveRange& b) {
 
 void Graph::buildWebs(const vector<LiveRange>& liveRanges) {
     int webCounter = 0;
-    
+
     // Step 1: Group LiveRanges by variable name
     map<string, vector<LiveRange>> varRanges;
     for (const auto& lr : liveRanges) {
@@ -37,19 +38,20 @@ void Graph::buildWebs(const vector<LiveRange>& liveRanges) {
             merged = false;
             for (size_t i = 0; i < ranges.size(); ++i) {
                 for (size_t j = i + 1; j < ranges.size(); ++j) {
-
                     if (rangesIntersect(ranges[i], ranges[j])) {
                         // Merge range j into range i
                         ranges[i].lines.insert(ranges[j].lines.begin(), ranges[j].lines.end());
-                        ranges[i].defLines.insert(ranges[j].defLines.begin(), ranges[j].defLines.end());
-                        ranges[i].useEndLines.insert(ranges[j].useEndLines.begin(), ranges[j].useEndLines.end());
+                        ranges[i].defLines.insert(ranges[j].defLines.begin(),
+                                                  ranges[j].defLines.end());
+                        ranges[i].useEndLines.insert(ranges[j].useEndLines.begin(),
+                                                     ranges[j].useEndLines.end());
                         // Erase range j (it has been merged)
                         ranges.erase(ranges.begin() + j);
                         merged = true;
-                        break; // Break inner loop and restart (indices changed)
+                        break;  // Break inner loop and restart (indices changed)
                     }
                 }
-                if (merged) break; // Recomeça o ciclo 'do-while'
+                if (merged) break;  // Restarts 'do-while' loop
             }
         } while (merged);
 
@@ -69,8 +71,8 @@ void Graph::buildWebs(const vector<LiveRange>& liveRanges) {
 void Graph::buildInterferences() {
     for (size_t i = 0; i < webs.size(); ++i) {
         // Ensure the Web exists in the adjacency list, even if it has no edges (degree 0)
-        adjList[webs[i].id]; 
-        
+        adjList[webs[i].id];
+
         for (size_t j = i + 1; j < webs.size(); ++j) {
             // Check interference using the helper method defined in DataTypes.h
             if (webs[i].interferesWith(webs[j])) {
