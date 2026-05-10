@@ -460,3 +460,51 @@ void Allocator::generateOutputFile(const string& filename) const {
     file.close();
     cout << "Results exported to: " << filename << endl;
 }
+
+void Allocator::generateColoredDOT(const std::string& filename) const {
+    std::ofstream file(filename + ".gv");
+    if (!file.is_open()) return;
+
+    // Color palette for registers
+    vector<string> colors = {"#FF6B6B", "#4ECDC4", "#45B7D1", "#FFA07A", "#98D8C8",
+                             "#F7DC6F", "#BB8FCE", "#85C1E2", "#F8B88B", "#A8E6CF"};
+
+    file << "digraph {\n";
+    file << "  labelloc = top;\n";
+    file << "  labeljust = left;\n";
+    file << "  fontname = calibri;\n";
+    file << "  fontsize = 16;\n";
+    file << "  node [shape=ellipse, style=filled];\n\n";
+
+    // Output nodes with colors based on register assignment
+    for (const auto& web : finalWebs) {
+        int reg = allocation.at(web.id);
+        file << "  web" << web.id << " [label=\"web" << web.id << " (" << web.variableName << ")\", ";
+
+        if (reg == -1) {
+            file << "fillcolor=\"#D3D3D3\"];  // Memory (gray)\n";
+        } else {
+            int colorIdx = reg % colors.size();
+            file << "fillcolor=\"" << colors[colorIdx] << "\"];  // r" << reg << "\n";
+        }
+    }
+
+    file << "\n";
+
+    // Output edges from the adjacency list
+    const auto& adjList = graph.getAdjList();
+    set<pair<int, int>> edgesSeen;  // Track edges to avoid duplicates
+    for (const auto& pair : adjList) {
+        int src = pair.first;
+        for (int dst : pair.second) {
+            // Output edge only once (canonical ordering)
+            if (src < dst && edgesSeen.find({src, dst}) == edgesSeen.end()) {
+                file << "  web" << src << " -> web" << dst << ";\n";
+                edgesSeen.insert({src, dst});
+            }
+        }
+    }
+
+    file << "}\n";
+    file.close();
+}

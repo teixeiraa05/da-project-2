@@ -114,6 +114,14 @@ public:
      * @note Time complexity: O(W + L), where W is the number of resulting webs and L the total sum of their lines.
      */
     void generateOutputFile(const std::string& filename) const;
+
+    /**
+     * @brief Generates a colored DOT file showing register allocation results.
+     * @details Nodes are colored by their assigned register: registers r0-r9 get distinct colors,
+     * and memory-spilled webs (M) are shown in gray.
+     * @param filename Base name for the DOT file (will append .gv automatically).
+     */
+    void generateColoredDOT(const std::string& filename) const;
 };
 
 #endif

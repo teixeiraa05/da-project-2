@@ -1,22 +1,23 @@
 #include "../include/Application.h"
-#include "../include/Parser.h"
-#include "../include/InterferenceGraph.h"
-#include "../include/Allocator.h"
+
 #include <iostream>
+
+#include "../include/Allocator.h"
+#include "../include/InterferenceGraph.h"
+#include "../include/Parser.h"
 
 using namespace std;
 
 Application::Application(int argc, char* argv[]) {
     isBatchMode = false;
-    
+
     // Verify required format: myProg -b ranges.txt registers.txt allocation.txt
     if (argc >= 5 && string(argv[1]) == "-b") {
         isBatchMode = true;
         rangesFile = argv[2];
         registersFile = argv[3];
         outputFile = argv[4];
-    } 
-    else if (argc > 1 && string(argv[1]) == "-b") {
+    } else if (argc > 1 && string(argv[1]) == "-b") {
         cerr << "Error: Insufficient arguments for batch mode." << endl;
         cerr << "Usage: ./myProg -b <ranges.txt> <registers.txt> <allocation.txt>" << endl;
         exit(1);
@@ -33,20 +34,36 @@ void Application::run() {
 
 void Application::runBatchMode() {
     cout << "Starting batch execution..." << endl;
-    
+
     Parser parser(rangesFile, registersFile);
     ConfigRegisters config = parser.parseRegistersFile();
     vector<LiveRange> ranges = parser.parseRangesFile();
-    
+
     if (ranges.empty()) {
         cerr << "Error: No ranges read. Exiting." << endl;
         return;
     }
 
     InterferenceGraph graph(ranges);
+
+    // Export DOT file for the parsed interference graph to help visualization
+    if (!outputFile.empty()) {
+        std::string dotName = outputFile + ".gv";
+        graph.emitDOTFile(outputFile);
+        cout << "DOT exported to: " << dotName << endl;
+    }
+
     Allocator allocator(graph, config);
-    
+
     allocator.run();
+    
+    // Export colored DOT file after allocation with register assignments
+    if (!outputFile.empty()) {
+        std::string allocatedDotName = outputFile + "_allocated.gv";
+        allocator.generateColoredDOT(outputFile + "_allocated");
+        cout << "Colored DOT exported to: " << allocatedDotName << endl;
+    }
+    
     allocator.generateOutputFile(outputFile);
 }
 
@@ -77,13 +94,28 @@ void Application::runInteractiveMode() {
                     Parser parser(rangesFile, registersFile);
                     ConfigRegisters config = parser.parseRegistersFile();
                     vector<LiveRange> ranges = parser.parseRangesFile();
-                    
+
                     if (!ranges.empty()) {
                         InterferenceGraph graph(ranges);
-                        graph.printGraph(); // Print the graph to the terminal so we can see the allocation process
+                        graph.printGraph();  // Print the graph to the terminal so we can see the
+                                             // allocation process
+                        // Export DOT file when running interactively with an output path set
+                        if (!outputFile.empty()) {
+                            std::string dotName = outputFile + ".gv";
+                            graph.emitDOTFile(outputFile);
+                            cout << "DOT exported to: " << dotName << endl;
+                        }
 
                         Allocator allocator(graph, config);
                         allocator.run();
+                        
+                        // Export colored DOT file after allocation with register assignments
+                        if (!outputFile.empty()) {
+                            std::string allocatedDotName = outputFile + "_allocated.gv";
+                            allocator.generateColoredDOT(outputFile + "_allocated");
+                            cout << "Colored DOT exported to: " << allocatedDotName << endl;
+                        }
+                        
                         allocator.generateOutputFile(outputFile);
                     }
                 }
