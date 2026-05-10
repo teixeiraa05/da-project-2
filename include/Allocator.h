@@ -58,6 +58,16 @@ private:
                    int& spilledNodeId);
 
     /**
+     * @brief Assigns register colors by popping nodes from the simplification stack.
+     * @param S Stack with node ids in reverse simplification order.
+     * @param adjList Adjacency list used to collect already-used neighbor colors.
+     * @param N Number of available registers.
+     * @return true If every node in the stack received a register color.
+     * @return false If at least one node could not be assigned any color.
+     */
+    bool colorNodes(std::stack<int>& S, const std::map<int, std::set<int>>& adjList, int N);
+
+    /**
      * @brief Rebuilds the adjacency list for the current `finalWebs` set.
      * @param outAdj Output adjacency list mapping web id -> neighbor ids.
      * @param skipWebs Optional pointer to a set of web ids to ignore (e.g., spilled webs). If nullptr, no webs are skipped.

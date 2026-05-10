@@ -30,7 +30,7 @@ void Allocator::run() {
     }
 
     if (!isFeasible) {
-        cerr << "Aviso: A alocacao nao foi possivel com os parametros dados." << endl;
+        cerr << "Warning: The allocation was not possible with the given parameters." << endl;
         config.numRegisters = 0;
         for (const auto& web : finalWebs) {
             allocation[web.id] = -1;
@@ -64,15 +64,48 @@ bool Allocator::spillNode(const std::map<int, std::set<int>>& originalAdjList,
     return true;
 }
 
+bool Allocator::colorNodes(std::stack<int>& S, const std::map<int, std::set<int>>& adjList, int N) {
+    while (!S.empty()) {
+        int n = S.top();
+        S.pop();
+
+        set<int> usedColors;
+        auto nodeIt = adjList.find(n);
+        if (nodeIt != adjList.end()) {
+            for (int neighbor : nodeIt->second) {
+                auto allocIt = allocation.find(neighbor);
+                if (allocIt != allocation.end() && allocIt->second != -1) {
+                    usedColors.insert(allocIt->second);
+                }
+            }
+        }
+
+        bool assigned = false;
+        for (int c = 0; c < N; ++c) {
+            if (usedColors.find(c) == usedColors.end()) {
+                allocation[n] = c;
+                assigned = true;
+                break;
+            }
+        }
+
+        if (!assigned) {
+            allocation[n] = -1;
+            return false;
+        }
+    }
+
+    return true;
+}
+
 bool Allocator::simplifyFindAndRemove(const std::map<int, std::set<int>>& adjList,
-                                      std::map<int, bool>& inGraph,
-                                      int N,
-                                      std::stack<int>& S,
+                                      std::map<int, bool>& inGraph, int N, std::stack<int>& S,
                                       int& nodesRemaining) {
     for (const auto& pair : adjList) {
         if (!inGraph[pair.first]) continue;
         int degree = 0;
-        for (int neighbor : pair.second) if (inGraph[neighbor]) degree++;
+        for (int neighbor : pair.second)
+            if (inGraph[neighbor]) degree++;
         if (degree < N) {
             inGraph[pair.first] = false;
             S.push(pair.first);
@@ -83,7 +116,8 @@ bool Allocator::simplifyFindAndRemove(const std::map<int, std::set<int>>& adjLis
     return false;
 }
 
-void Allocator::rebuildAdjacency(std::map<int, std::set<int>>& outAdj, const std::set<int>* skipWebs) const {
+void Allocator::rebuildAdjacency(std::map<int, std::set<int>>& outAdj,
+                                 const std::set<int>* skipWebs) const {
     for (size_t i = 0; i < finalWebs.size(); ++i) {
         int id1 = finalWebs[i].id;
         if (skipWebs && skipWebs->count(id1)) continue;
@@ -110,7 +144,7 @@ bool Allocator::runBasicAllocation() {
 
     while (nodesRemaining > 0) {
         bool found = false;
-        found = simplifyFindAndRemove(originalAdjList, inGraph, N, S, nodesRemaining);
+        found = simplifyFindAndRemove(originalAdjList, inGraph, N, S, nodesRemaining); // Try to find a node with degree < N and remove it.
 
         // If no node has degree < N, choose one node to spill and keep simplifying.
         if (!found) {
@@ -119,22 +153,7 @@ bool Allocator::runBasicAllocation() {
         }
     }
 
-    while (!S.empty()) {
-        int n = S.top();
-        S.pop();
-        set<int> usedColors;
-        for (int neighbor : originalAdjList.at(n)) {
-            if (allocation[neighbor] != -1) usedColors.insert(allocation[neighbor]);
-        }
-
-        for (int c = 0; c < N; ++c) {
-            if (usedColors.find(c) == usedColors.end()) {
-                allocation[n] = c;
-                break;
-            }
-        }
-    }
-    return true;
+    return colorNodes(S, originalAdjList, N);
 }
 
 bool Allocator::runSpillingAllocation() {
@@ -150,7 +169,7 @@ bool Allocator::runSpillingAllocation() {
     stack<int> S;
 
     while (nodesRemaining > 0) {
-            bool found = simplifyFindAndRemove(originalAdjList, inGraph, N, S, nodesRemaining);
+        bool found = simplifyFindAndRemove(originalAdjList, inGraph, N, S, nodesRemaining);
 
         if (!found) {
             if (spillsUsed >= maxSpills) return false;
@@ -158,25 +177,11 @@ bool Allocator::runSpillingAllocation() {
             int nodeToSpill = -1;
             if (!spillNode(originalAdjList, inGraph, nodesRemaining, nodeToSpill)) return false;
             spillsUsed++;
-            cout << "-> Spilling aplicado na Web " << nodeToSpill << endl;
+            cout << "-> Spilling applied to Web " << nodeToSpill << endl;
         }
     }
 
-    while (!S.empty()) {
-        int n = S.top();
-        S.pop();
-        set<int> usedColors;
-        for (int neighbor : originalAdjList.at(n))
-            if (allocation[neighbor] != -1) usedColors.insert(allocation[neighbor]);
-
-        for (int c = 0; c < N; ++c) {
-            if (usedColors.find(c) == usedColors.end()) {
-                allocation[n] = c;
-                break;
-            }
-        }
-    }
-    return true;
+    return colorNodes(S, originalAdjList, N);
 }
 
 bool Allocator::runSplittingAllocation() {
@@ -210,22 +215,7 @@ bool Allocator::runSplittingAllocation() {
         if (!stuck) {
             allocation.clear();
             for (const auto& web : finalWebs) allocation[web.id] = -1;  // Reset.
-
-            while (!S.empty()) {
-                int n = S.top();
-                S.pop();
-                set<int> usedColors;
-                for (int neighbor : currentAdjList.at(n))
-                    if (allocation[neighbor] != -1) usedColors.insert(allocation[neighbor]);
-
-                for (int c = 0; c < N; ++c) {
-                    if (usedColors.find(c) == usedColors.end()) {
-                        allocation[n] = c;
-                        break;
-                    }
-                }
-            }
-            return true;
+            return colorNodes(S, currentAdjList, N);
         }
 
         // 4. If we got stuck, we must split.
@@ -329,23 +319,7 @@ bool Allocator::runFreeAllocation() {
         if (!stuck) {
             allocation.clear();
             for (const auto& web : finalWebs) allocation[web.id] = -1;  // Initial reset.
-
-            while (!S.empty()) {
-                int n = S.top();
-                S.pop();
-                set<int> usedColors;
-                for (int neighbor : currentAdjList.at(n)) {
-                    if (allocation[neighbor] != -1) usedColors.insert(allocation[neighbor]);
-                }
-
-                for (int c = 0; c < N; ++c) {
-                    if (usedColors.find(c) == usedColors.end()) {
-                        allocation[n] = c;
-                        break;
-                    }
-                }
-            }
-            return true;  // Absolute success!
+            return colorNodes(S, currentAdjList, N);  // Absolute success!
         }
 
         // 4. If we got stuck -> PLAN A: try splitting.
