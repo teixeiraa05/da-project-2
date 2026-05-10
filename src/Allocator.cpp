@@ -8,7 +8,7 @@
 
 using namespace std;
 
-Allocator::Allocator(const Graph& g, const ConfigRegisters& c) : graph(g), config(c) {
+Allocator::Allocator(const InterferenceGraph& g, const ConfigRegisters& c) : graph(g), config(c) {
     isFeasible = true;
     finalWebs =
         graph.getWebs();  // Copy the original webs so they can be modified during splitting.
@@ -144,7 +144,9 @@ bool Allocator::runBasicAllocation() {
 
     while (nodesRemaining > 0) {
         bool found = false;
-        found = simplifyFindAndRemove(originalAdjList, inGraph, N, S, nodesRemaining); // Try to find a node with degree < N and remove it.
+        found = simplifyFindAndRemove(
+            originalAdjList, inGraph, N, S,
+            nodesRemaining);  // Try to find a node with degree < N and remove it.
 
         // If no node has degree < N, choose one node to spill and keep simplifying.
         if (!found) {
@@ -319,7 +321,7 @@ bool Allocator::runFreeAllocation() {
         if (!stuck) {
             allocation.clear();
             for (const auto& web : finalWebs) allocation[web.id] = -1;  // Initial reset.
-            return colorNodes(S, currentAdjList, N);  // Absolute success!
+            return colorNodes(S, currentAdjList, N);                    // Absolute success!
         }
 
         // 4. If we got stuck -> PLAN A: try splitting.

@@ -1,6 +1,6 @@
 #include "../include/Application.h"
 #include "../include/Parser.h"
-#include "../include/Graph.h"
+#include "../include/InterferenceGraph.h"
 #include "../include/Allocator.h"
 #include <iostream>
 
@@ -43,7 +43,7 @@ void Application::runBatchMode() {
         return;
     }
 
-    Graph graph(ranges);
+    InterferenceGraph graph(ranges);
     Allocator allocator(graph, config);
     
     allocator.run();
@@ -79,9 +79,9 @@ void Application::runInteractiveMode() {
                     vector<LiveRange> ranges = parser.parseRangesFile();
                     
                     if (!ranges.empty()) {
-                        Graph graph(ranges);
+                        InterferenceGraph graph(ranges);
                         graph.printGraph(); // Print the graph to the terminal so we can see the allocation process
-                        
+
                         Allocator allocator(graph, config);
                         allocator.run();
                         allocator.generateOutputFile(outputFile);

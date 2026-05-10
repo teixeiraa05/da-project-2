@@ -1,7 +1,7 @@
 #ifndef ALLOCATOR_H
 #define ALLOCATOR_H
 
-#include "Graph.h"
+#include "InterferenceGraph.h"
 #include "Parser.h"
 #include <map>
 #include <set>
@@ -16,7 +16,7 @@
  */
 class Allocator {
 private:
-    Graph graph;                         /**< @brief Instance of the original graph containing Webs and edges. */
+    InterferenceGraph graph;             /**< @brief Instance of the InterferenceGraph containing Webs and edges. */
     ConfigRegisters config;              /**< @brief Configuration for register limits and algorithm parameters. */
     
     std::map<int, int> allocation;       /**< @brief Final mapping from Web ID to register color (-1 means Memory/M). */
@@ -101,7 +101,7 @@ public:
      * @param g Constant reference to the Interference Graph.
      * @param c Definitions read from the registers/configuration file.
      */
-    Allocator(const Graph& g, const ConfigRegisters& c);
+    Allocator(const InterferenceGraph& g, const ConfigRegisters& c);
 
     /**
      * @brief Launches execution of the specific algorithm dictated in the configuration file (basic, spilling, splitting or free).
