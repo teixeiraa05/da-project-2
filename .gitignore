@@ -1,0 +1,6 @@
+docs/html
+*.txt
+*.txt.gv
+*.gv
+myProg
+obj

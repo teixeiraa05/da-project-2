@@ -5,24 +5,24 @@ SRC_DIR = src
 INC_DIR = include
 OBJ_DIR = obj
 
-# Encontra todos os ficheiros .cpp na pasta src/
+# Find all .cpp files in the src folder
 SRCS = $(wildcard $(SRC_DIR)/*.cpp)
-# Cria os nomes dos ficheiros .o equivalentes na pasta obj/
+# Create the corresponding .o filenames in the obj folder
 OBJS = $(patsubst $(SRC_DIR)/%.cpp,$(OBJ_DIR)/%.o,$(SRCS))
 
 TARGET = myProg
 
 all: $(TARGET)
 
-# Cria o executável
+# Create the executable
 $(TARGET): $(OBJS)
 	$(CXX) $(CXXFLAGS) -o $@ $^
 
-# Compila os objetos individualmente
+# Compile object files individually
 $(OBJ_DIR)/%.o: $(SRC_DIR)/%.cpp | $(OBJ_DIR)
 	$(CXX) $(CXXFLAGS) -c $< -o $@
 
-# Cria a pasta obj se não existir
+# Create the obj folder if it doesn't exist
 $(OBJ_DIR):
 	mkdir -p $(OBJ_DIR)
 
