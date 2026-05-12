@@ -6,19 +6,13 @@ using namespace std;
 
 InterferenceGraph::InterferenceGraph(const vector<LiveRange>& liveRanges) {
     buildWebs(liveRanges);
-    buildInterferences();
 
     // Populate base Graph<int> with vertices and edges for helper operations
     for (const auto &w : webs) {
         addVertex(w.id);
     }
-    for (const auto &pair : adjList) {
-        int src = pair.first;
-        for (int dst : pair.second) {
-            // addEdge will silently fail if vertex missing; vertices were added above
-            addEdge(src, dst, 1.0);
-        }
-    }
+
+    buildInterferences();
 }
 
 bool InterferenceGraph::rangesIntersect(const LiveRange& a, const LiveRange& b) {
@@ -81,6 +75,7 @@ void InterferenceGraph::buildInterferences() {
             if (webs[i].interferesWith(webs[j])) {
                 adjList[webs[i].id].insert(webs[j].id);
                 adjList[webs[j].id].insert(webs[i].id);
+                addUndirectedEdge(webs[i].id, webs[j].id, 1.0); // Add edge to base Graph<int>
             }
         }
     }

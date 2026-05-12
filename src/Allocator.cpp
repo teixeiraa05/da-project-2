@@ -5,8 +5,56 @@
 #include <iostream>
 #include <set>
 #include <stack>
+#include <utility>
 
 using namespace std;
+
+namespace {
+
+int nextWebId(const vector<Web>& webs) {
+    int nextId = 0;
+    for (const auto& web : webs)
+        if (web.id >= nextId) nextId = web.id + 1;
+    return nextId;
+}
+
+pair<Web, Web> splitWebAtBoundary(const Web& original, int newId) {
+    Web left;
+    Web right;
+
+    left.id = original.id;
+    right.id = newId;
+    left.variableName = original.variableName;
+    right.variableName = original.variableName;
+
+    const size_t splitIndex = original.lines.size() / 2;
+
+    size_t index = 0;
+    for (int line : original.lines) {
+        const bool goesLeft = index < splitIndex;
+        const bool goesRight = index >= splitIndex;
+
+        if (goesLeft) {
+            left.lines.insert(line);
+            if (original.defLines.find(line) != original.defLines.end()) left.defLines.insert(line);
+            if (original.useEndLines.find(line) != original.useEndLines.end())
+                left.useEndLines.insert(line);
+        }
+
+        if (goesRight) {
+            right.lines.insert(line);
+            if (original.defLines.find(line) != original.defLines.end()) right.defLines.insert(line);
+            if (original.useEndLines.find(line) != original.useEndLines.end())
+                right.useEndLines.insert(line);
+        }
+
+        ++index;
+    }
+
+    return {left, right};
+}
+
+}  // namespace
 
 Allocator::Allocator(const InterferenceGraph& g, const ConfigRegisters& c) : graph(g), config(c) {
     isFeasible = true;
@@ -187,9 +235,9 @@ bool Allocator::runSpillingAllocation() {
 }
 
 bool Allocator::runSplittingAllocation() {
+    int N = config.numRegisters;
     int maxSplits = config.k_param;
     int splitsUsed = 0;
-    int N = config.numRegisters;
 
     // Main loop: try to color the graph, and if it fails, perform one split and restart.
     while (true) {
@@ -239,45 +287,17 @@ bool Allocator::runSplittingAllocation() {
 
         // Perform the split.
         Web original = finalWebs[splitIdx];
-        finalWebs.erase(finalWebs.begin() + splitIdx);  // Remove the original web.
+           finalWebs.erase(finalWebs.begin() + splitIdx);  // Remove the original web.
 
-        Web w1, w2;
-        // Find the next available ID.
-        int nextId = 0;
-        for (const auto& w : finalWebs)
-            if (w.id >= nextId) nextId = w.id + 1;
+           const int newId = nextWebId(finalWebs);
+           auto [w1, w2] = splitWebAtBoundary(original, newId);
 
-        w1.id = nextId++;
-        w2.id = nextId++;
-        w1.variableName = original.variableName;
-        w2.variableName = original.variableName;
-
-        // Split the lines in half.
-        int half = original.lines.size() / 2;
-        int count = 0;
-        for (int line : original.lines) {
-            if (count < half) {
-                w1.lines.insert(line);
-                if (original.defLines.find(line) != original.defLines.end())
-                    w1.defLines.insert(line);
-                if (original.useEndLines.find(line) != original.useEndLines.end())
-                    w1.useEndLines.insert(line);
-            } else {
-                w2.lines.insert(line);
-                if (original.defLines.find(line) != original.defLines.end())
-                    w2.defLines.insert(line);
-                if (original.useEndLines.find(line) != original.useEndLines.end())
-                    w2.useEndLines.insert(line);
-            }
-            count++;
-        }
-
-        finalWebs.push_back(w1);
-        finalWebs.push_back(w2);
+           finalWebs.push_back(w1);
+           finalWebs.push_back(w2);
         splitsUsed++;
 
-        cout << "-> Splitting applied to Web " << original.id << " (split into Web " << w1.id
-             << " and Web " << w2.id << ")" << endl;
+           cout << "-> Splitting applied to Web " << original.id << " (kept as Web " << w1.id
+               << ", new Web " << w2.id << ")" << endl;
 
         // The while(true) loop repeats and tries to allocate the new graph again.
     }
@@ -349,34 +369,8 @@ bool Allocator::runFreeAllocation() {
             Web original = finalWebs[splitIdx];
             finalWebs.erase(finalWebs.begin() + splitIdx);
 
-            Web w1, w2;
-            int nextId = 0;
-            for (const auto& w : finalWebs)
-                if (w.id >= nextId) nextId = w.id + 1;
-
-            w1.id = nextId++;
-            w2.id = nextId++;
-            w1.variableName = original.variableName;
-            w2.variableName = original.variableName;
-
-            int half = original.lines.size() / 2;
-            int count = 0;
-            for (int line : original.lines) {
-                if (count < half) {
-                    w1.lines.insert(line);
-                    if (original.defLines.find(line) != original.defLines.end())
-                        w1.defLines.insert(line);
-                    if (original.useEndLines.find(line) != original.useEndLines.end())
-                        w1.useEndLines.insert(line);
-                } else {
-                    w2.lines.insert(line);
-                    if (original.defLines.find(line) != original.defLines.end())
-                        w2.defLines.insert(line);
-                    if (original.useEndLines.find(line) != original.useEndLines.end())
-                        w2.useEndLines.insert(line);
-                }
-                count++;
-            }
+            const int newId = nextWebId(finalWebs);
+            auto [w1, w2] = splitWebAtBoundary(original, newId);
 
             finalWebs.push_back(w1);
             finalWebs.push_back(w2);
@@ -477,6 +471,9 @@ void Allocator::generateColoredDOT(const std::string& filename) const {
     file << "  fontsize = 16;\n";
     file << "  node [shape=ellipse, style=filled];\n\n";
 
+    map<int, set<int>> currentAdjList;
+    rebuildAdjacency(currentAdjList, nullptr);
+
     // Output nodes with colors based on register assignment
     for (const auto& web : finalWebs) {
         int reg = allocation.at(web.id);
@@ -493,9 +490,8 @@ void Allocator::generateColoredDOT(const std::string& filename) const {
 
     file << "\n";
 
-    // Output edges from the adjacency list
-    const auto& adjList = graph.getAdjList();
-    for (const auto& pair : adjList) {
+    // Output edges from the current transformed adjacency list
+    for (const auto& pair : currentAdjList) {
         int src = pair.first;
         for (int dst : pair.second) {
             // Output edge only once (canonical ordering)

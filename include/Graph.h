@@ -82,6 +82,7 @@ public:
 	bool addVertex(const T &in);
 	bool removeVertex(const T &in);
 	bool addEdge(const T &sourc, const T &dest, double w);
+	bool addUndirectedEdge(const T &sourc, const T &dest, double w);
 	bool removeEdge(const T &sourc, const T &dest);
     vector<Vertex<T> * > getVertexSet() const;
 	vector<T> dfs() const;
@@ -244,6 +245,21 @@ bool Graph<T>::addEdge(const T &sourc, const T &dest, double w) {
 	v1->addEdge(v2,w);
     //v2->incoming.push_back(Edge<T>(v1,w)); // incoming edges
 	return true;
+}
+
+/*
+ * Adds an undirected edge to a graph (this), given the contents of the source and
+ * destination vertices and the edge weight (w).
+ * Returns true if successful, and false if the source or destination vertex does not exist.
+ */
+template <class T>
+bool Graph<T>::addUndirectedEdge(const T& sourc, const T& dest, double w) {
+    auto v1 = findVertex(sourc);
+    auto v2 = findVertex(dest);
+    if (v1 == nullptr || v2 == nullptr) return false;
+    v1->addEdge(v2, w);
+    v2->addEdge(v1, w);
+    return true;
 }
 
 /*
