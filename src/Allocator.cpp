@@ -3,6 +3,7 @@
 #include <algorithm>
 #include <fstream>
 #include <iostream>
+#include <limits>
 #include <set>
 #include <stack>
 #include <utility>
@@ -55,6 +56,13 @@ pair<Web, Web> splitWebAtBoundary(const Web& original, int newId) {
     return {left, right};
 }
 
+const Web* findWebById(const vector<Web>& webs, int webId) {
+    for (const auto& web : webs) {
+        if (web.id == webId) return &web;
+    }
+    return nullptr;
+}
+
 }  // namespace
 
 Allocator::Allocator(const InterferenceGraph& g, const ConfigRegisters& c) : graph(g), config(c) {
@@ -87,10 +95,19 @@ void Allocator::run() {
     }
 }
 
+double Allocator::computeSpillScore(const Web& web, int degree) const {
+    if (degree <= 0) return numeric_limits<double>::infinity();
+
+    const int spillCost = static_cast<int>(web.defLines.size() + web.useEndLines.size());
+    return static_cast<double>(spillCost) / static_cast<double>(degree);
+}
+
 bool Allocator::spillNode(const std::map<int, std::set<int>>& originalAdjList,
                           std::map<int, bool>& inGraph, int& nodesRemaining, int& spilledNodeId) {
     spilledNodeId = -1;
-    int maxDegree = -1;
+    double bestScore = numeric_limits<double>::infinity();
+    int bestCost = numeric_limits<int>::max();
+    int bestDegree = -1;
 
     for (const auto& pair : originalAdjList) {
         if (!inGraph[pair.first]) continue;
@@ -99,8 +116,18 @@ bool Allocator::spillNode(const std::map<int, std::set<int>>& originalAdjList,
         for (int neighbor : pair.second)
             if (inGraph[neighbor]) degree++;
 
-        if (degree > maxDegree) {
-            maxDegree = degree;
+        const Web* web = findWebById(finalWebs, pair.first);
+        if (web == nullptr) continue;
+
+        const int spillCost = static_cast<int>(web->defLines.size() + web->useEndLines.size());
+        const double score = computeSpillScore(*web, degree);
+
+        if (score < bestScore ||
+            (score == bestScore && (spillCost < bestCost ||
+                                    (spillCost == bestCost && degree > bestDegree)))) {
+            bestScore = score;
+            bestCost = spillCost;
+            bestDegree = degree;
             spilledNodeId = pair.first;
         }
     }
@@ -332,10 +359,17 @@ bool Allocator::runSpillingAllocation() {
             int nodeToSpill = -1;
             if (!spillNode(originalAdjList, inGraph, nodesRemaining, nodeToSpill)) return false;
             spillsUsed++;
-            cout << "-> Spilling applied to Web " << nodeToSpill << endl;
+            const Web* spilledWeb = findWebById(finalWebs, nodeToSpill);
+            if (spilledWeb != nullptr) {
+                cout << "[Spill] Web " << nodeToSpill << " (" << spilledWeb->variableName
+                     << ") moved to memory." << endl;
+            } else {
+                cout << "[Spill] Web " << nodeToSpill << " moved to memory." << endl;
+            }
         }
     }
 
+    cout << "[Spill] Summary: " << spillsUsed << " used of " << maxSpills << " allowed." << endl;
     return colorNodes(S, originalAdjList, N);
 }
 
@@ -370,11 +404,15 @@ bool Allocator::runSplittingAllocation() {
         if (!stuck) {
             allocation.clear();
             for (const auto& web : finalWebs) allocation[web.id] = -1;  // Reset.
+            cout << "[Split] Summary: " << splitsUsed << " used of " << maxSplits << " allowed." << endl;
             return colorNodes(S, currentAdjList, N);
         }
 
         // 4. If we got stuck, we must split.
-        if (splitsUsed >= maxSplits) return false;  // We have exhausted the splits.
+        if (splitsUsed >= maxSplits) {
+            cout << "[Split] Summary: " << splitsUsed << " used of " << maxSplits << " allowed." << endl;
+            return false;  // We have exhausted the splits.
+        }
 
         // Find the web with the highest degree that has at least 2 lines.
         int nodeToSplitId = -1, maxDegree = -1, splitIdx = -1;
@@ -389,7 +427,8 @@ bool Allocator::runSplittingAllocation() {
         }
 
         if (nodeToSplitId == -1) {
-            cout << "-> No splittable web found." << endl;
+            cout << "[Split] No splittable web was found." << endl;
+            cout << "[Split] Summary: " << splitsUsed << " used of " << maxSplits << " allowed." << endl;
             return false;
         }
 
@@ -404,8 +443,8 @@ bool Allocator::runSplittingAllocation() {
         finalWebs.push_back(w2);
         splitsUsed++;
 
-        cout << "-> Splitting applied to Web " << original.id << " (kept as Web " << w1.id
-             << ", new Web " << w2.id << ")" << endl;
+           cout << "[Split] Web " << original.id << " was split into Web " << w1.id << " and Web "
+               << w2.id << "." << endl;
 
         // The while(true) loop repeats and tries to allocate the new graph again.
     }
@@ -433,7 +472,7 @@ bool Allocator::runFreeAllocation() {
         }
 
         if (webIds.empty()) {
-            cout << "-> [Free Mode] All webs processed (some spilled)." << endl;
+            cout << "[Free] All webs were processed. Some were moved to memory." << endl;
             return true;
         }
 
@@ -443,7 +482,7 @@ bool Allocator::runFreeAllocation() {
         }
 
         if (colorNodesDSATUR(currentAdjList, webIds, N)) {
-            cout << "-> [Free Mode] DSATUR succeeded." << endl;
+            cout << "[Free] DSATUR coloring completed successfully." << endl;
             return true;
         }
 
@@ -478,7 +517,7 @@ bool Allocator::runFreeAllocation() {
             finalWebs.push_back(w1);
             finalWebs.push_back(w2);
             splitsUsed++;
-            cout << "-> [Free Mode] Splitting applied on Web " << original.id << endl;
+            cout << "[Free] Web " << original.id << " was split." << endl;
             continue;  // Restart the loop with the new webs.
         }
 
@@ -498,7 +537,13 @@ bool Allocator::runFreeAllocation() {
         if (nodeToSpillId != -1) {
             spilledWebs.insert(nodeToSpillId);  // Move it to memory.
             allocation[nodeToSpillId] = -1;
-            cout << "-> [Free Mode] Spilling applied on Web " << nodeToSpillId << endl;
+            const Web* spilledWeb = findWebById(finalWebs, nodeToSpillId);
+            if (spilledWeb != nullptr) {
+                cout << "[Free] Web " << nodeToSpillId << " (" << spilledWeb->variableName
+                     << ") moved to memory." << endl;
+            } else {
+                cout << "[Free] Web " << nodeToSpillId << " moved to memory." << endl;
+            }
             continue;  // Restart the loop.
         }
 
@@ -553,7 +598,7 @@ void Allocator::generateOutputFile(const string& filename) const {
     }
 
     file.close();
-    cout << "Results exported to: " << filename << endl;
+    cout << "Allocation report written to: " << filename << endl;
 }
 
 void Allocator::generateColoredDOT(const std::string& filename) const {

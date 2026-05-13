@@ -33,7 +33,9 @@ void Application::run() {
 }
 
 void Application::runBatchMode() {
-    cout << "Starting batch execution..." << endl;
+    cout << "========================================" << endl;
+    cout << "Batch Allocation Run" << endl;
+    cout << "========================================" << endl;
 
     Parser parser(rangesFile, registersFile);
     ConfigRegisters config = parser.parseRegistersFile();
@@ -50,7 +52,7 @@ void Application::runBatchMode() {
     if (!outputFile.empty()) {
         std::string dotName = outputFile + ".gv";
         graph.emitDOTFile(outputFile);
-        cout << "DOT exported to: " << dotName << endl;
+        cout << "Graph preview saved to: " << dotName << endl;
     }
 
     Allocator allocator(graph, config);
@@ -61,10 +63,11 @@ void Application::runBatchMode() {
     if (!outputFile.empty()) {
         std::string allocatedDotName = outputFile + "_allocated.gv";
         allocator.generateColoredDOT(outputFile + "_allocated");
-        cout << "Colored DOT exported to: " << allocatedDotName << endl;
+        cout << "Allocated graph saved to: " << allocatedDotName << endl;
     }
     
     allocator.generateOutputFile(outputFile);
+    cout << "Run complete. Allocation file saved to: " << outputFile << endl;
 }
 
 void Application::runInteractiveMode() {
@@ -90,7 +93,9 @@ void Application::runInteractiveMode() {
                 if (rangesFile.empty() || registersFile.empty() || outputFile.empty()) {
                     cerr << "Error: Please set input and output files first (Option 1)." << endl;
                 } else {
-                    cout << "\n--- Running allocation pipeline ---" << endl;
+                    cout << "\n========================================" << endl;
+                    cout << "Interactive Allocation Run" << endl;
+                    cout << "========================================" << endl;
                     Parser parser(rangesFile, registersFile);
                     ConfigRegisters config = parser.parseRegistersFile();
                     vector<LiveRange> ranges = parser.parseRangesFile();
@@ -103,7 +108,7 @@ void Application::runInteractiveMode() {
                         if (!outputFile.empty()) {
                             std::string dotName = outputFile + ".gv";
                             graph.emitDOTFile(outputFile);
-                            cout << "DOT exported to: " << dotName << endl;
+                            cout << "Graph preview saved to: " << dotName << endl;
                         }
 
                         Allocator allocator(graph, config);
@@ -113,10 +118,11 @@ void Application::runInteractiveMode() {
                         if (!outputFile.empty()) {
                             std::string allocatedDotName = outputFile + "_allocated.gv";
                             allocator.generateColoredDOT(outputFile + "_allocated");
-                            cout << "Colored DOT exported to: " << allocatedDotName << endl;
+                            cout << "Allocated graph saved to: " << allocatedDotName << endl;
                         }
                         
                         allocator.generateOutputFile(outputFile);
+                        cout << "Run complete. Allocation file saved to: " << outputFile << endl;
                     }
                 }
                 break;

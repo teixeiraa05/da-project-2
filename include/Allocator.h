@@ -25,13 +25,14 @@ private:
     std::vector<Web> finalWebs;          /**< @brief Mutable copy of the Webs, required to allow splitting. */
 
     /**
-        * @brief Attempts to color the graph by repeatedly removing nodes with degree less than N.
-        * @details When all remaining nodes have degree >= N, it selects a spill candidate and continues.
-        * @return true If allocation terminates successfully (possibly with spilled webs marked as memory).
-     * @note Time complexity: O(W^2 + E), where W is the number of Webs and E the number of edges in the graph.
+     * @brief Computes a spill score for a web using a cost/degree ratio.
+     * @details Lower scores are preferred for spilling.
+     * @param web The web being evaluated.
+     * @param degree Its current interference degree in the active graph.
+     * @return The spill score, where smaller values indicate a better spill candidate.
      */
-    bool runBasicAllocation();
-
+    double computeSpillScore(const Web& web, int degree) const;
+    
     /**
      * @brief Simplification step: find a node with degree < N, remove it from the graph,
      * push it onto the stack and decrement the remaining node count.
@@ -45,6 +46,7 @@ private:
 
     /**
      * @brief Selects and removes one spill candidate from the current simplification graph.
+     * @details Chooses the active web with the lowest cost/degree ratio.
      * @param originalAdjList Interference adjacency list used for degree computation.
      * @param inGraph Marks whether each node is currently active in simplification.
      * @param nodesRemaining Counter of active nodes; decremented when a spill is applied.
@@ -56,15 +58,15 @@ private:
                    std::map<int, bool>& inGraph,
                    int& nodesRemaining,
                    int& spilledNodeId);
-
-    /**
-     * @brief Assigns register colors by popping nodes from the simplification stack.
-     * @param S Stack with node ids in reverse simplification order.
-     * @param adjList Adjacency list used to collect already-used neighbor colors.
-     * @param N Number of available registers.
-     * @return true If every node in the stack received a register color.
-     * @return false If at least one node could not be assigned any color.
-     */
+                   
+                   /**
+                    * @brief Assigns register colors by popping nodes from the simplification stack.
+                    * @param S Stack with node ids in reverse simplification order.
+                    * @param adjList Adjacency list used to collect already-used neighbor colors.
+                    * @param N Number of available registers.
+                    * @return true If every node in the stack received a register color.
+                    * @return false If at least one node could not be assigned any color.
+                    */
     bool colorNodes(std::stack<int>& S, const std::map<int, std::set<int>>& adjList, int N);
 
     /**
@@ -80,15 +82,23 @@ private:
      * @note Time complexity: O(W^2 * N) where W is the number of webs.
      */
     bool colorNodesDSATUR(const std::map<int, std::set<int>>& adjList,
-                          const std::set<int>& webIds, int N);
-
-    /**
-     * @brief Rebuilds the adjacency list for the current `finalWebs` set.
+        const std::set<int>& webIds, int N);
+        
+        /**
+         * @brief Rebuilds the adjacency list for the current `finalWebs` set.
      * @param outAdj Output adjacency list mapping web id -> neighbor ids.
      * @param skipWebs Optional pointer to a set of web ids to ignore (e.g., spilled webs). If nullptr, no webs are skipped.
      */
     void rebuildAdjacency(std::map<int, std::set<int>>& outAdj, const std::set<int>* skipWebs = nullptr) const;
-
+    
+    /**
+        * @brief Attempts to color the graph by repeatedly removing nodes with degree less than N.
+        * @details When all remaining nodes have degree >= N, it selects a spill candidate and continues.
+        * @return true If allocation terminates successfully (possibly with spilled webs marked as memory).
+        * @note Time complexity: O(W^2 + E), where W is the number of Webs and E the number of edges in the graph.
+        */
+    bool runBasicAllocation();
+    
     /**
      * @brief Coloring algorithm which, when stuck, sacrifices (spills) the Web with highest interference degree.
      * @return true If the allocation completed within the stipulated limit of K spills.
