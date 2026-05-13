@@ -43,7 +43,8 @@ pair<Web, Web> splitWebAtBoundary(const Web& original, int newId) {
 
         if (goesRight) {
             right.lines.insert(line);
-            if (original.defLines.find(line) != original.defLines.end()) right.defLines.insert(line);
+            if (original.defLines.find(line) != original.defLines.end())
+                right.defLines.insert(line);
             if (original.useEndLines.find(line) != original.useEndLines.end())
                 right.useEndLines.insert(line);
         }
@@ -140,6 +141,110 @@ bool Allocator::colorNodes(std::stack<int>& S, const std::map<int, std::set<int>
         if (!assigned) {
             allocation[n] = -1;
             return false;
+        }
+    }
+
+    return true;
+}
+
+bool Allocator::colorNodesDSATUR(const std::map<int, std::set<int>>& adjList,
+                                 const std::set<int>& webIds, int N) {
+    // DSATUR (Degree of Saturation) Algorithm:
+    // Iteratively color the uncolored vertex with the highest saturation degree.
+    // Saturation degree = number of different colors already used by neighbors.
+    // Tiebreaker: highest degree (number of neighbors).
+
+    map<int, int> saturationDegree;  // saturation degree for each uncolored vertex
+    map<int, bool> isColored;        // whether a vertex is already colored
+
+    // Initialize
+    for (int webId : webIds) {
+        saturationDegree[webId] = 0;
+        isColored[webId] = false;
+    }
+
+    // Color all vertices
+    for (size_t colored = 0; colored < webIds.size(); ++colored) {
+        // Find uncolored vertex with highest saturation degree (tiebreak by degree)
+        int selectedVertex = -1;
+        int maxSaturation = -1;
+        int maxDegree = -1;
+
+        for (int webId : webIds) {
+            if (isColored[webId]) continue;
+
+            int sat = saturationDegree[webId];
+            int degree = 0;
+            auto it = adjList.find(webId);
+            if (it != adjList.end()) {
+                for (int neighbor : it->second) {
+                    if (webIds.count(neighbor)) degree++;
+                }
+            }
+
+            if (sat > maxSaturation || (sat == maxSaturation && degree > maxDegree)) {
+                maxSaturation = sat;
+                maxDegree = degree;
+                selectedVertex = webId;
+            }
+        }
+
+        if (selectedVertex == -1) break;  // No more vertices to color
+
+        // Collect colors used by neighbors of selectedVertex
+        set<int> usedColors;
+        auto it = adjList.find(selectedVertex);
+        if (it != adjList.end()) {
+            for (int neighbor : it->second) {
+                if (isColored[neighbor]) {
+                    usedColors.insert(allocation[neighbor]);
+                }
+            }
+        }
+
+        // Find the first available color
+        int assignedColor = -1;
+        for (int c = 0; c < N; ++c) {
+            if (usedColors.find(c) == usedColors.end()) {
+                assignedColor = c;
+                break;
+            }
+        }
+
+        if (assignedColor == -1) {
+            // No color available, spill this web
+            allocation[selectedVertex] = -1;
+        } else {
+            allocation[selectedVertex] = assignedColor;
+        }
+
+        isColored[selectedVertex] = true;
+
+        // Update saturation degrees of uncolored neighbors
+        it = adjList.find(selectedVertex);
+        if (it != adjList.end()) {
+            for (int neighbor : it->second) {
+                if (!isColored[neighbor]) {
+                    // Check if neighbor now has a new colored neighbor color
+                    set<int> neighborColors;
+                    auto nit = adjList.find(neighbor);
+                    if (nit != adjList.end()) {
+                        for (int nn : nit->second) {
+                            if (isColored[nn]) {
+                                neighborColors.insert(allocation[nn]);
+                            }
+                        }
+                    }
+                    saturationDegree[neighbor] = neighborColors.size();
+                }
+            }
+        }
+    }
+
+    // Check if all vertices got a color (none spilled)
+    for (int webId : webIds) {
+        if (allocation[webId] == -1) {
+            return false;  // Failed to color
         }
     }
 
@@ -283,21 +388,24 @@ bool Allocator::runSplittingAllocation() {
             }
         }
 
-        if (nodeToSplitId == -1) return false;  // No splittable web found.
+        if (nodeToSplitId == -1) {
+            cout << "-> No splittable web found." << endl;
+            return false;
+        }
 
-        // Perform the split.
+        // Perform the split
         Web original = finalWebs[splitIdx];
-           finalWebs.erase(finalWebs.begin() + splitIdx);  // Remove the original web.
+        finalWebs.erase(finalWebs.begin() + splitIdx);  // Remove the original web.
 
-           const int newId = nextWebId(finalWebs);
-           auto [w1, w2] = splitWebAtBoundary(original, newId);
+        const int newId = nextWebId(finalWebs);
+        auto [w1, w2] = splitWebAtBoundary(original, newId);
 
-           finalWebs.push_back(w1);
-           finalWebs.push_back(w2);
+        finalWebs.push_back(w1);
+        finalWebs.push_back(w2);
         splitsUsed++;
 
-           cout << "-> Splitting applied to Web " << original.id << " (kept as Web " << w1.id
-               << ", new Web " << w2.id << ")" << endl;
+        cout << "-> Splitting applied to Web " << original.id << " (kept as Web " << w1.id
+             << ", new Web " << w2.id << ")" << endl;
 
         // The while(true) loop repeats and tries to allocate the new graph again.
     }
@@ -316,47 +424,42 @@ bool Allocator::runFreeAllocation() {
         map<int, set<int>> currentAdjList;
         rebuildAdjacency(currentAdjList, &spilledWebs);
 
-        // 2. Simplification phase.
-        map<int, bool> inGraph;
-        int nodesRemaining = 0;
+        // 2. Collect web IDs to color (exclude spilled ones)
+        set<int> webIds;
         for (const auto& web : finalWebs) {
             if (!spilledWebs.count(web.id)) {
-                inGraph[web.id] = true;
-                nodesRemaining++;
+                webIds.insert(web.id);
             }
         }
 
-        stack<int> S;
-        bool stuck = false;
-
-        while (nodesRemaining > 0) {
-            bool found = simplifyFindAndRemove(currentAdjList, inGraph, N, S, nodesRemaining);
-            if (!found) {
-                stuck = true;
-                break;
-            }  // Stuck!
+        if (webIds.empty()) {
+            cout << "-> [Free Mode] All webs processed (some spilled)." << endl;
+            return true;
         }
 
-        // 3. If we did not get stuck, perform the final coloring.
-        if (!stuck) {
-            allocation.clear();
-            for (const auto& web : finalWebs) allocation[web.id] = -1;  // Initial reset.
-            return colorNodes(S, currentAdjList, N);                    // Absolute success!
+        // 3. Reset allocation and try DSATUR coloring
+        for (int webId : webIds) {
+            allocation[webId] = -1;
         }
 
-        // 4. If we got stuck -> PLAN A: try splitting.
-        int nodeToSplitId = -1, maxDegreeSplit = -1, splitIdx = -1;
+        if (colorNodesDSATUR(currentAdjList, webIds, N)) {
+            cout << "-> [Free Mode] DSATUR succeeded." << endl;
+            return true;
+        }
+
+        // 4. DSATUR failed -> PLAN A: try splitting if budget allows
+        int nodeToSplitId = -1;
+        int maxDegreeSplit = -1;
+        int splitIdx = -1;
+
         if (splitsUsed < maxSplits) {
             for (size_t i = 0; i < finalWebs.size(); ++i) {
                 int id = finalWebs[i].id;
-                if (spilledWebs.count(id) || !inGraph[id]) continue;
+                if (spilledWebs.count(id) || allocation[id] != -1) continue;  // Spilled or colored
+                if (finalWebs[i].lines.size() < 2) continue;                  // Can't split
 
-                int degree = 0;
-                for (int neighbor : currentAdjList[id])
-                    if (inGraph[neighbor]) degree++;
-
-                // It must have the highest interference and at least 2 code lines.
-                if (degree > maxDegreeSplit && finalWebs[i].lines.size() >= 2) {
+                int degree = currentAdjList[id].size();
+                if (degree > maxDegreeSplit) {
                     maxDegreeSplit = degree;
                     nodeToSplitId = id;
                     splitIdx = i;
@@ -375,20 +478,17 @@ bool Allocator::runFreeAllocation() {
             finalWebs.push_back(w1);
             finalWebs.push_back(w2);
             splitsUsed++;
-            cout << "-> [Free Mode] Splitting applied on the Web " << original.id << endl;
+            cout << "-> [Free Mode] Splitting applied on Web " << original.id << endl;
             continue;  // Restart the loop with the new webs.
         }
 
-        // 5. If splitting fails or runs out -> PLAN B: spilling.
+        // 5. If splitting fails or runs out -> PLAN B: spilling
         int nodeToSpillId = -1, maxDegreeSpill = -1;
         for (size_t i = 0; i < finalWebs.size(); ++i) {
             int id = finalWebs[i].id;
-            if (spilledWebs.count(id) || !inGraph[id]) continue;
+            if (spilledWebs.count(id) || allocation[id] != -1) continue;
 
-            int degree = 0;
-            for (int neighbor : currentAdjList[id])
-                if (inGraph[neighbor]) degree++;
-
+            int degree = currentAdjList[id].size();
             if (degree > maxDegreeSpill) {
                 maxDegreeSpill = degree;
                 nodeToSpillId = id;
@@ -397,11 +497,12 @@ bool Allocator::runFreeAllocation() {
 
         if (nodeToSpillId != -1) {
             spilledWebs.insert(nodeToSpillId);  // Move it to memory.
-            cout << "-> [Free Mode] Spilling applied on the Web " << nodeToSpillId << endl;
+            allocation[nodeToSpillId] = -1;
+            cout << "-> [Free Mode] Spilling applied on Web " << nodeToSpillId << endl;
             continue;  // Restart the loop.
         }
 
-        return false;  // This should never be reached, but it is kept for safety.
+        return false;  // Should never be reached
     }
 }
 

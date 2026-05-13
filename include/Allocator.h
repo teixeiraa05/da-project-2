@@ -68,6 +68,21 @@ private:
     bool colorNodes(std::stack<int>& S, const std::map<int, std::set<int>>& adjList, int N);
 
     /**
+     * @brief DSATUR algorithm: colors the graph based on degree of saturation.
+     * @details Iteratively selects the uncolored vertex with highest saturation degree
+     * (number of different colors used by neighbors). Breaks ties by degree.
+     * Typically produces better colorings than greedy approaches.
+     * @param adjList Adjacency list representation of the graph.
+     * @param webIds Set of Web IDs to color (others are ignored or assumed spilled).
+     * @param N Number of available registers.
+     * @return true If all webs in webIds received a color.
+     * @return false If at least one web could not be colored with N registers.
+     * @note Time complexity: O(W^2 * N) where W is the number of webs.
+     */
+    bool colorNodesDSATUR(const std::map<int, std::set<int>>& adjList,
+                          const std::set<int>& webIds, int N);
+
+    /**
      * @brief Rebuilds the adjacency list for the current `finalWebs` set.
      * @param outAdj Output adjacency list mapping web id -> neighbor ids.
      * @param skipWebs Optional pointer to a set of web ids to ignore (e.g., spilled webs). If nullptr, no webs are skipped.
