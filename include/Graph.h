@@ -352,6 +352,7 @@ inline void  Graph<T>::emitDOTFile(string gname) {
     g_dot_file << "labeljust = left;\n";
     g_dot_file << "fontname  = calibri;\n";
     g_dot_file << "fontsize  = 16;\n";
+    g_dot_file << "rankdir = LR;\n";
     g_dot_file << "\n";
 
     for (auto v : vertexSet) {
