@@ -59,17 +59,9 @@ private:
         int& nodesRemaining);
   
     /**
-     * @brief Computes a spill score for a web using a cost/degree ratio.
-     * @details Lower scores are preferred for spilling.
-     * @param web The web being evaluated.
-     * @param degree Its current interference degree in the active graph.
-     * @return The spill score, where smaller values indicate a better spill candidate.
-     */
-    double computeSpillScore(const Web& web, int degree) const;
-        
-    /**
-     * @brief Selects and removes one spill candidate from the current simplification graph.
-     * @details Chooses the active web with the lowest cost/degree ratio.
+        * @brief Selects and removes one spill candidate from the current simplification graph.
+        * @details Chooses the active web with the highest interference degree. If several nodes
+        * share the same degree, prefers the one with the smaller live-range footprint.
      * @param originalAdjList Interference adjacency list used for degree computation.
      * @param inGraph Marks whether each node is currently active in simplification.
      * @param nodesRemaining Counter of active nodes; decremented when a spill is applied.

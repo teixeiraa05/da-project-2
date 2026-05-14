@@ -237,40 +237,32 @@ bool Allocator::colorNodesDSATUR(const std::map<int, std::set<int>>& adjList,
 // Spilling helpers
 // =========================================================
 
-double Allocator::computeSpillScore(const Web& web, int degree) const {
-    if (degree <= 0) return numeric_limits<double>::infinity();
-
-    const int spillCost = static_cast<int>(web.defLines.size() + web.useEndLines.size());
-    return static_cast<double>(spillCost) / static_cast<double>(degree);
-}
-
+// Spill selection: choose the active node with the highest degree.
 bool Allocator::spillNode(const std::map<int, std::set<int>>& originalAdjList,
                           std::map<int, bool>& inGraph, int& nodesRemaining, int& spilledNodeId) {
+    // Select the active node with the highest degree (counting only active neighbors).
     spilledNodeId = -1;
-    double bestScore = numeric_limits<double>::infinity();
-    int bestCost = numeric_limits<int>::max();
-    int bestDegree = -1;
+    int highestDegree = -1;
+    size_t smallestFootprint = numeric_limits<size_t>::max();
 
     for (const auto& pair : originalAdjList) {
-        if (!inGraph[pair.first]) continue;
+        int nodeId = pair.first;
+        if (!inGraph[nodeId]) continue;
 
         int degree = 0;
-        for (int neighbor : pair.second)
+        for (int neighbor : pair.second) {
             if (inGraph[neighbor]) degree++;
+        }
 
-        const Web* web = findWebById(finalWebs, pair.first);
+        const Web* web = findWebById(finalWebs, nodeId);
         if (web == nullptr) continue;
 
-        const int spillCost = static_cast<int>(web->defLines.size() + web->useEndLines.size());
-        const double score = computeSpillScore(*web, degree);
+        const size_t footprint = web->defLines.size() + web->useEndLines.size();
 
-        if (score < bestScore ||
-            (score == bestScore && (spillCost < bestCost ||
-                                    (spillCost == bestCost && degree > bestDegree)))) {
-            bestScore = score;
-            bestCost = spillCost;
-            bestDegree = degree;
-            spilledNodeId = pair.first;
+        if (degree > highestDegree || (degree == highestDegree && footprint < smallestFootprint)) {
+            highestDegree = degree;
+            smallestFootprint = footprint;
+            spilledNodeId = nodeId;
         }
     }
 
@@ -618,12 +610,13 @@ void Allocator::generateColoredDOT(const std::string& filename) const {
     vector<string> colors = {"#FF6B6B", "#4ECDC4", "#45B7D1", "#FFA07A", "#98D8C8",
                              "#F7DC6F", "#BB8FCE", "#85C1E2", "#F8B88B", "#A8E6CF"};
 
-    file << "digraph {\n";
+    file << "graph {\n";
     file << "  labelloc = top;\n";
     file << "  labeljust = left;\n";
     file << "  fontname = calibri;\n";
     file << "  fontsize = 16;\n";
-    file << "  node [shape=ellipse, style=filled];\n\n";
+    file << "  rankdir = LR;\n";
+    file << "  node [shape=circle, style=filled];\n\n";
 
     map<int, set<int>> currentAdjList;
     rebuildAdjacency(currentAdjList, nullptr);
@@ -644,12 +637,13 @@ void Allocator::generateColoredDOT(const std::string& filename) const {
 
     file << "\n";
 
-    // Output edges from the current transformed adjacency list
+    // Output undirected edges from the current transformed adjacency list (single edge per pair)
     for (const auto& pair : currentAdjList) {
         int src = pair.first;
         for (int dst : pair.second) {
-            // Output edge only once (canonical ordering)
-            file << "  web" << src << " -> web" << dst << ";\n";
+            if (src < dst) {
+                file << "  web" << src << " -- web" << dst << ";\n";
+            }
         }
     }
 
