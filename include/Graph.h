@@ -345,21 +345,24 @@ inline void  Graph<T>::emitDOTFile(string gname) {
     ofstream g_dot_file;
 
     g_dot_file.open (gname+".gv");
-    g_dot_file << "digraph { \n";
-
+    g_dot_file << "graph { \n";
 
     g_dot_file << "labelloc  = top;\n";
     g_dot_file << "labeljust = left;\n";
     g_dot_file << "fontname  = calibri;\n";
     g_dot_file << "fontsize  = 16;\n";
     g_dot_file << "rankdir = LR;\n";
+    g_dot_file << "  node [shape=circle, style=filled];\n";
     g_dot_file << "\n";
 
     for (auto v : vertexSet) {
         g_dot_file << "  " << v->getInfo() << ";\n";  // Print isolated node
         for (auto & e : v->getAdj()) {
             auto w = e.getDest();
-            g_dot_file << "  " << v->getInfo() << " -> " << w->getInfo() << ";\n";
+            // Emit undirected edge only once by ordering pointers
+            if (v < w) {
+                g_dot_file << "  " << v->getInfo() << " -- " << w->getInfo() << ";\n";
+            }
         }
     }
 
