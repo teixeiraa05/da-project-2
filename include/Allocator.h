@@ -25,6 +25,40 @@ private:
     std::vector<Web> finalWebs;          /**< @brief Mutable copy of the Webs, required to allow splitting. */
 
     /**
+     * @brief Returns the next available Web identifier.
+     * @param webs Current list of webs.
+     * @return The first unused numeric Web id.
+     */
+    int nextWebId(const std::vector<Web>& webs) const;
+    
+    /**
+     * @brief Finds a web by its identifier inside a list of webs.
+     * @param webs Collection to search.
+     * @param webId Web identifier to locate.
+     * @return Pointer to the matching web, or nullptr if it does not exist.
+     */
+    const Web* findWebById(const std::vector<Web>& webs, int webId) const;
+    
+    /**
+     * @brief Splits a web into two halves at the midpoint of its line set.
+     * @param original The web to split.
+     * @param newId Identifier for the newly created web.
+     * @return A pair containing the left and right split webs.
+     */
+    std::pair<Web, Web> splitWebAtBoundary(const Web& original, int newId) const;
+     
+    /**
+     * @brief Simplification step: find a node with degree < N, remove it from the graph,
+     * push it onto the stack and decrement the remaining node count.
+     * @return true if a node was removed; false otherwise.
+     */
+    bool simplifyFindAndRemove(const std::map<int, std::set<int>>& adjList,
+        std::map<int, bool>& inGraph,
+        int N,
+        std::stack<int>& S,
+        int& nodesRemaining);
+  
+    /**
      * @brief Computes a spill score for a web using a cost/degree ratio.
      * @details Lower scores are preferred for spilling.
      * @param web The web being evaluated.
@@ -32,18 +66,7 @@ private:
      * @return The spill score, where smaller values indicate a better spill candidate.
      */
     double computeSpillScore(const Web& web, int degree) const;
-    
-    /**
-     * @brief Simplification step: find a node with degree < N, remove it from the graph,
-     * push it onto the stack and decrement the remaining node count.
-     * @return true if a node was removed; false otherwise.
-     */
-    bool simplifyFindAndRemove(const std::map<int, std::set<int>>& adjList,
-                               std::map<int, bool>& inGraph,
-                               int N,
-                               std::stack<int>& S,
-                               int& nodesRemaining);
-
+        
     /**
      * @brief Selects and removes one spill candidate from the current simplification graph.
      * @details Chooses the active web with the lowest cost/degree ratio.
@@ -59,14 +82,14 @@ private:
                    int& nodesRemaining,
                    int& spilledNodeId);
                    
-                   /**
-                    * @brief Assigns register colors by popping nodes from the simplification stack.
-                    * @param S Stack with node ids in reverse simplification order.
-                    * @param adjList Adjacency list used to collect already-used neighbor colors.
-                    * @param N Number of available registers.
-                    * @return true If every node in the stack received a register color.
-                    * @return false If at least one node could not be assigned any color.
-                    */
+    /**
+    * @brief Assigns register colors by popping nodes from the simplification stack.
+    * @param S Stack with node ids in reverse simplification order.
+    * @param adjList Adjacency list used to collect already-used neighbor colors.
+    * @param N Number of available registers.
+    * @return true If every node in the stack received a register color.
+    * @return false If at least one node could not be assigned any color.
+    */
     bool colorNodes(std::stack<int>& S, const std::map<int, std::set<int>>& adjList, int N);
 
     /**

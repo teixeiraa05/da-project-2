@@ -10,16 +10,44 @@
 
 using namespace std;
 
-namespace {
+Allocator::Allocator(const InterferenceGraph& g, const ConfigRegisters& c) : graph(g), config(c) {
+    isFeasible = true;
+    finalWebs =
+        graph.getWebs();  // Copy the original webs so they can be modified during splitting.
 
-int nextWebId(const vector<Web>& webs) {
+    for (const auto& web : finalWebs) {
+        allocation[web.id] = -1;
+    }
+}
+
+void Allocator::run() {
+    if (config.algorithm == "basic") {
+        isFeasible = runBasicAllocation();
+    } else if (config.algorithm == "spilling") {
+        isFeasible = runSpillingAllocation();
+    } else if (config.algorithm == "splitting") {
+        isFeasible = runSplittingAllocation();
+    } else if (config.algorithm == "free") {  // Our custom algorithm.
+        isFeasible = runFreeAllocation();
+    }
+
+    if (!isFeasible) {
+        cerr << "Warning: The allocation was not possible with the given parameters." << endl;
+        config.numRegisters = 0;
+        for (const auto& web : finalWebs) {
+            allocation[web.id] = -1;
+        }
+    }
+}
+
+int Allocator::nextWebId(const vector<Web>& webs) const {
     int nextId = 0;
     for (const auto& web : webs)
         if (web.id >= nextId) nextId = web.id + 1;
     return nextId;
 }
 
-pair<Web, Web> splitWebAtBoundary(const Web& original, int newId) {
+pair<Web, Web> Allocator::splitWebAtBoundary(const Web& original, int newId) const {
     Web left;
     Web right;
 
@@ -56,89 +84,16 @@ pair<Web, Web> splitWebAtBoundary(const Web& original, int newId) {
     return {left, right};
 }
 
-const Web* findWebById(const vector<Web>& webs, int webId) {
+const Web* Allocator::findWebById(const vector<Web>& webs, int webId) const {
     for (const auto& web : webs) {
         if (web.id == webId) return &web;
     }
     return nullptr;
 }
 
-}  // namespace
-
-Allocator::Allocator(const InterferenceGraph& g, const ConfigRegisters& c) : graph(g), config(c) {
-    isFeasible = true;
-    finalWebs =
-        graph.getWebs();  // Copy the original webs so they can be modified during splitting.
-
-    for (const auto& web : finalWebs) {
-        allocation[web.id] = -1;
-    }
-}
-
-void Allocator::run() {
-    if (config.algorithm == "basic") {
-        isFeasible = runBasicAllocation();
-    } else if (config.algorithm == "spilling") {
-        isFeasible = runSpillingAllocation();
-    } else if (config.algorithm == "splitting") {
-        isFeasible = runSplittingAllocation();
-    } else if (config.algorithm == "free") {  // Our custom algorithm.
-        isFeasible = runFreeAllocation();
-    }
-
-    if (!isFeasible) {
-        cerr << "Warning: The allocation was not possible with the given parameters." << endl;
-        config.numRegisters = 0;
-        for (const auto& web : finalWebs) {
-            allocation[web.id] = -1;
-        }
-    }
-}
-
-double Allocator::computeSpillScore(const Web& web, int degree) const {
-    if (degree <= 0) return numeric_limits<double>::infinity();
-
-    const int spillCost = static_cast<int>(web.defLines.size() + web.useEndLines.size());
-    return static_cast<double>(spillCost) / static_cast<double>(degree);
-}
-
-bool Allocator::spillNode(const std::map<int, std::set<int>>& originalAdjList,
-                          std::map<int, bool>& inGraph, int& nodesRemaining, int& spilledNodeId) {
-    spilledNodeId = -1;
-    double bestScore = numeric_limits<double>::infinity();
-    int bestCost = numeric_limits<int>::max();
-    int bestDegree = -1;
-
-    for (const auto& pair : originalAdjList) {
-        if (!inGraph[pair.first]) continue;
-
-        int degree = 0;
-        for (int neighbor : pair.second)
-            if (inGraph[neighbor]) degree++;
-
-        const Web* web = findWebById(finalWebs, pair.first);
-        if (web == nullptr) continue;
-
-        const int spillCost = static_cast<int>(web->defLines.size() + web->useEndLines.size());
-        const double score = computeSpillScore(*web, degree);
-
-        if (score < bestScore ||
-            (score == bestScore && (spillCost < bestCost ||
-                                    (spillCost == bestCost && degree > bestDegree)))) {
-            bestScore = score;
-            bestCost = spillCost;
-            bestDegree = degree;
-            spilledNodeId = pair.first;
-        }
-    }
-
-    if (spilledNodeId == -1) return false;
-
-    inGraph[spilledNodeId] = false;
-    allocation[spilledNodeId] = -1;
-    nodesRemaining--;
-    return true;
-}
+// =========================================================
+// Coloring algorithms
+// =========================================================
 
 bool Allocator::colorNodes(std::stack<int>& S, const std::map<int, std::set<int>>& adjList, int N) {
     while (!S.empty()) {
@@ -278,6 +233,55 @@ bool Allocator::colorNodesDSATUR(const std::map<int, std::set<int>>& adjList,
     return true;
 }
 
+// =========================================================
+// Spilling helpers
+// =========================================================
+
+double Allocator::computeSpillScore(const Web& web, int degree) const {
+    if (degree <= 0) return numeric_limits<double>::infinity();
+
+    const int spillCost = static_cast<int>(web.defLines.size() + web.useEndLines.size());
+    return static_cast<double>(spillCost) / static_cast<double>(degree);
+}
+
+bool Allocator::spillNode(const std::map<int, std::set<int>>& originalAdjList,
+                          std::map<int, bool>& inGraph, int& nodesRemaining, int& spilledNodeId) {
+    spilledNodeId = -1;
+    double bestScore = numeric_limits<double>::infinity();
+    int bestCost = numeric_limits<int>::max();
+    int bestDegree = -1;
+
+    for (const auto& pair : originalAdjList) {
+        if (!inGraph[pair.first]) continue;
+
+        int degree = 0;
+        for (int neighbor : pair.second)
+            if (inGraph[neighbor]) degree++;
+
+        const Web* web = findWebById(finalWebs, pair.first);
+        if (web == nullptr) continue;
+
+        const int spillCost = static_cast<int>(web->defLines.size() + web->useEndLines.size());
+        const double score = computeSpillScore(*web, degree);
+
+        if (score < bestScore ||
+            (score == bestScore && (spillCost < bestCost ||
+                                    (spillCost == bestCost && degree > bestDegree)))) {
+            bestScore = score;
+            bestCost = spillCost;
+            bestDegree = degree;
+            spilledNodeId = pair.first;
+        }
+    }
+
+    if (spilledNodeId == -1) return false;
+
+    inGraph[spilledNodeId] = false;
+    allocation[spilledNodeId] = -1;
+    nodesRemaining--;
+    return true;
+}
+
 bool Allocator::simplifyFindAndRemove(const std::map<int, std::set<int>>& adjList,
                                       std::map<int, bool>& inGraph, int N, std::stack<int>& S,
                                       int& nodesRemaining) {
@@ -312,6 +316,10 @@ void Allocator::rebuildAdjacency(std::map<int, std::set<int>>& outAdj,
         }
     }
 }
+
+// =========================================================
+// Allocator routines
+// =========================================================
 
 bool Allocator::runBasicAllocation() {
     int N = config.numRegisters;
