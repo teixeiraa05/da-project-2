@@ -39,58 +39,6 @@ void Allocator::run() {
         }
     }
 }
-
-int Allocator::nextWebId(const vector<Web>& webs) const {
-    int nextId = 0;
-    for (const auto& web : webs)
-        if (web.id >= nextId) nextId = web.id + 1;
-    return nextId;
-}
-
-pair<Web, Web> Allocator::splitWebAtBoundary(const Web& original, int newId) const {
-    Web left;
-    Web right;
-
-    left.id = original.id;
-    right.id = newId;
-    left.variableName = original.variableName;
-    right.variableName = original.variableName;
-
-    const size_t splitIndex = original.lines.size() / 2;
-
-    size_t index = 0;
-    for (int line : original.lines) {
-        const bool goesLeft = index < splitIndex;
-        const bool goesRight = index >= splitIndex;
-
-        if (goesLeft) {
-            left.lines.insert(line);
-            if (original.defLines.find(line) != original.defLines.end()) left.defLines.insert(line);
-            if (original.useEndLines.find(line) != original.useEndLines.end())
-                left.useEndLines.insert(line);
-        }
-
-        if (goesRight) {
-            right.lines.insert(line);
-            if (original.defLines.find(line) != original.defLines.end())
-                right.defLines.insert(line);
-            if (original.useEndLines.find(line) != original.useEndLines.end())
-                right.useEndLines.insert(line);
-        }
-
-        ++index;
-    }
-
-    return {left, right};
-}
-
-const Web* Allocator::findWebById(const vector<Web>& webs, int webId) const {
-    for (const auto& web : webs) {
-        if (web.id == webId) return &web;
-    }
-    return nullptr;
-}
-
 // =========================================================
 // Coloring algorithms
 // =========================================================
@@ -232,6 +180,63 @@ bool Allocator::colorNodesDSATUR(const std::map<int, std::set<int>>& adjList,
 
     return true;
 }
+
+// =========================================================
+// Splitting algorithms & helpers
+// =========================================================
+
+// helper to find next available web id for splitting
+int Allocator::nextWebId(const vector<Web>& webs) const {
+    int nextId = 0;
+    for (const auto& web : webs)
+        if (web.id >= nextId) nextId = web.id + 1;
+    return nextId;
+}
+
+pair<Web, Web> Allocator::splitWebAtBoundary(const Web& original, int newId) const {
+    Web left;
+    Web right;
+
+    left.id = original.id;
+    right.id = newId;
+    left.variableName = original.variableName;
+    right.variableName = original.variableName;
+
+    const size_t splitIndex = original.lines.size() / 2;
+
+    size_t index = 0;
+    for (int line : original.lines) {
+        const bool goesLeft = index < splitIndex;
+        const bool goesRight = index >= splitIndex;
+
+        if (goesLeft) {
+            left.lines.insert(line);
+            if (original.defLines.find(line) != original.defLines.end()) left.defLines.insert(line);
+            if (original.useEndLines.find(line) != original.useEndLines.end())
+                left.useEndLines.insert(line);
+        }
+
+        if (goesRight) {
+            right.lines.insert(line);
+            if (original.defLines.find(line) != original.defLines.end())
+                right.defLines.insert(line);
+            if (original.useEndLines.find(line) != original.useEndLines.end())
+                right.useEndLines.insert(line);
+        }
+
+        ++index;
+    }
+
+    return {left, right};
+}
+
+const Web* Allocator::findWebById(const vector<Web>& webs, int webId) const {
+    for (const auto& web : webs) {
+        if (web.id == webId) return &web;
+    }
+    return nullptr;
+}
+
 
 // =========================================================
 // Spilling helpers
@@ -404,13 +409,15 @@ bool Allocator::runSplittingAllocation() {
         if (!stuck) {
             allocation.clear();
             for (const auto& web : finalWebs) allocation[web.id] = -1;  // Reset.
-            cout << "[Split] Summary: " << splitsUsed << " used of " << maxSplits << " allowed." << endl;
+            cout << "[Split] Summary: " << splitsUsed << " used of " << maxSplits << " allowed."
+                 << endl;
             return colorNodes(S, currentAdjList, N);
         }
 
         // 4. If we got stuck, we must split.
         if (splitsUsed >= maxSplits) {
-            cout << "[Split] Summary: " << splitsUsed << " used of " << maxSplits << " allowed." << endl;
+            cout << "[Split] Summary: " << splitsUsed << " used of " << maxSplits << " allowed."
+                 << endl;
             return false;  // We have exhausted the splits.
         }
 
@@ -428,7 +435,8 @@ bool Allocator::runSplittingAllocation() {
 
         if (nodeToSplitId == -1) {
             cout << "[Split] No splittable web was found." << endl;
-            cout << "[Split] Summary: " << splitsUsed << " used of " << maxSplits << " allowed." << endl;
+            cout << "[Split] Summary: " << splitsUsed << " used of " << maxSplits << " allowed."
+                 << endl;
             return false;
         }
 
@@ -443,8 +451,8 @@ bool Allocator::runSplittingAllocation() {
         finalWebs.push_back(w2);
         splitsUsed++;
 
-           cout << "[Split] Web " << original.id << " was split into Web " << w1.id << " and Web "
-               << w2.id << "." << endl;
+        cout << "[Split] Web " << original.id << " was split into Web " << w1.id << " and Web "
+             << w2.id << "." << endl;
 
         // The while(true) loop repeats and tries to allocate the new graph again.
     }
