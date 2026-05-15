@@ -21,6 +21,8 @@ private:
     
     std::map<int, int> allocation;       /**< @brief Final mapping from Web ID to register color (-1 means Memory/M). */
     bool isFeasible;                     /**< @brief Boolean flag indicating whether the algorithm completed the allocation. */
+    int splitCount;                      /**< @brief Number of splits performed by the last allocation run. */
+    int spillCount;                      /**< @brief Number of spills performed by the last allocation run. */
     
     std::vector<Web> finalWebs;          /**< @brief Mutable copy of the Webs, required to allow splitting. */
 
@@ -38,6 +40,20 @@ private:
      * @return Pointer to the matching web, or nullptr if it does not exist.
      */
     const Web* findWebById(const std::vector<Web>& webs, int webId) const;
+
+    /**
+     * @brief Formats the live-range contents of a web for display in the DOT legend.
+     * @param web Web to format.
+     * @return A compact string listing the web's sorted program points with markers.
+     */
+    std::string formatWebRange(const Web& web) const;
+
+    /**
+     * @brief Escapes text so it can be safely embedded in a DOT HTML label.
+     * @param text Plain text to escape.
+     * @return Escaped HTML-safe text.
+     */
+    std::string escapeDotHtml(const std::string& text) const;
     
     /**
      * @brief Splits a web into two halves at the midpoint of its line set.

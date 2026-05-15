@@ -5,6 +5,7 @@
 #include <iostream>
 #include <limits>
 #include <set>
+#include <sstream>
 #include <stack>
 #include <utility>
 
@@ -12,6 +13,8 @@ using namespace std;
 
 Allocator::Allocator(const InterferenceGraph& g, const ConfigRegisters& c) : graph(g), config(c) {
     isFeasible = true;
+        splitCount = 0;
+        spillCount = 0;
     finalWebs =
         graph.getWebs();  // Copy the original webs so they can be modified during splitting.
 
@@ -21,6 +24,9 @@ Allocator::Allocator(const InterferenceGraph& g, const ConfigRegisters& c) : gra
 }
 
 void Allocator::run() {
+        splitCount = 0;
+        spillCount = 0;
+
     if (config.algorithm == "basic") {
         isFeasible = runBasicAllocation();
     } else if (config.algorithm == "spilling") {
@@ -328,15 +334,10 @@ bool Allocator::runBasicAllocation() {
     stack<int> S;
 
     while (nodesRemaining > 0) {
-        bool found = false;
-        found = simplifyFindAndRemove(
-            originalAdjList, inGraph, N, S,
-            nodesRemaining);  // Try to find a node with degree < N and remove it.
-
-        // If no node has degree < N, choose one node to spill and keep simplifying.
-        if (!found) {
-            int spilledNodeId = -1;
-            if (!spillNode(originalAdjList, inGraph, nodesRemaining, spilledNodeId)) return false;
+        if (!simplifyFindAndRemove(originalAdjList, inGraph, N, S, nodesRemaining)) {
+            cerr << "Error: Basic allocation failed because the graph is not greedily colorable with "
+                 << N << " registers." << endl;
+            return false;
         }
     }
 
@@ -371,6 +372,7 @@ bool Allocator::runSpillingAllocation() {
             } else {
                 cout << "[Spill] Web " << nodeToSpill << " moved to memory." << endl;
             }
+            spillCount++;
         }
     }
 
@@ -450,6 +452,7 @@ bool Allocator::runSplittingAllocation() {
         finalWebs.push_back(w1);
         finalWebs.push_back(w2);
         splitsUsed++;
+        splitCount++;
 
         cout << "[Split] Web " << original.id << " was split into Web " << w1.id << " and Web "
              << w2.id << "." << endl;
@@ -545,6 +548,7 @@ bool Allocator::runFreeAllocation() {
         if (nodeToSpillId != -1) {
             spilledWebs.insert(nodeToSpillId);  // Move it to memory.
             allocation[nodeToSpillId] = -1;
+            spillCount++;
             const Web* spilledWeb = findWebById(finalWebs, nodeToSpillId);
             if (spilledWeb != nullptr) {
                 cout << "[Free] Web " << nodeToSpillId << " (" << spilledWeb->variableName
@@ -609,6 +613,50 @@ void Allocator::generateOutputFile(const string& filename) const {
     cout << "Allocation report written to: " << filename << endl;
 }
 
+string Allocator::escapeDotHtml(const string& text) const {
+    string escaped;
+    escaped.reserve(text.size());
+    for (char ch : text) {
+        switch (ch) {
+            case '&':
+                escaped += "&amp;";
+                break;
+            case '<':
+                escaped += "&lt;";
+                break;
+            case '>':
+                escaped += "&gt;";
+                break;
+            case '"':
+                escaped += "&quot;";
+                break;
+            default:
+                escaped.push_back(ch);
+                break;
+        }
+    }
+    return escaped;
+}
+
+string Allocator::formatWebRange(const Web& web) const {
+    std::ostringstream out;
+    bool first = true;
+    for (int line : web.lines) {
+        if (!first) out << ",";
+        out << line;
+
+        const bool isDef = (web.defLines.find(line) != web.defLines.end());
+        const bool isLastUse = (web.useEndLines.find(line) != web.useEndLines.end());
+        if (!(isDef && isLastUse)) {
+            if (isDef) out << "+";
+            if (isLastUse) out << "-";
+        }
+
+        first = false;
+    }
+    return out.str();
+}
+
 void Allocator::generateColoredDOT(const std::string& filename) const {
     std::ofstream file(filename + ".gv");
     if (!file.is_open()) return;
@@ -623,11 +671,62 @@ void Allocator::generateColoredDOT(const std::string& filename) const {
     file << "  labeljust = left;\n";
     file << "  fontname = calibri;\n";
     file << "  fontsize = 16;\n";
+    file << "  pad = 0.45;\n";
+    file << "  nodesep = 0.9;\n";
+    file << "  ranksep = 1.15;\n";
     file << "  rankdir = LR;\n";
     file << "  node [shape=circle, style=filled];\n\n";
 
     map<int, set<int>> currentAdjList;
     rebuildAdjacency(currentAdjList, nullptr);
+
+    file << "  subgraph cluster_legend {\n";
+    file << "    label=\"Allocation legend\";\n";
+    file << "    labelloc=top;\n";
+    file << "    fontsize=14;\n";
+    file << "    style=rounded;\n";
+    file << "    color=\"#7A7A7A\";\n";
+    file << "    margin=24;\n";
+    file << "    rank=sink;\n";
+    file << "    legend_node [shape=plain, margin=0, label=<\n";
+    file << "      <TABLE BORDER=\"1\" CELLBORDER=\"1\" CELLSPACING=\"0\" CELLPADDING=\"5\">\n";
+    file << "        <TR><TD BGCOLOR=\"#ECECEC\" COLSPAN=\"4\"><B>Run summary</B></TD></TR>\n";
+    file << "        <TR><TD ALIGN=\"LEFT\"><B>Algorithm</B></TD><TD ALIGN=\"LEFT\" COLSPAN=\"3\">"
+         << escapeDotHtml(config.algorithm) << "</TD></TR>\n";
+    file << "        <TR><TD ALIGN=\"LEFT\"><B>Registers</B></TD><TD ALIGN=\"LEFT\">"
+         << config.numRegisters << "</TD><TD ALIGN=\"LEFT\"><B>Feasible</B></TD><TD ALIGN=\"LEFT\">"
+         << (isFeasible ? "yes" : "no") << "</TD></TR>\n";
+    file << "        <TR><TD ALIGN=\"LEFT\"><B>Splits</B></TD><TD ALIGN=\"LEFT\">"
+         << splitCount << "</TD><TD ALIGN=\"LEFT\"><B>Spills</B></TD><TD ALIGN=\"LEFT\">"
+         << spillCount << "</TD></TR>\n";
+    file << "        <TR><TD BGCOLOR=\"#ECECEC\" COLSPAN=\"4\"><B>Web details</B></TD></TR>\n";
+    file << "        <TR><TD><B>Node</B></TD><TD><B>Variable</B></TD><TD><B>Live range</B></TD><TD><B>Assignment</B></TD></TR>\n";
+
+    for (const auto& web : finalWebs) {
+        const int reg = allocation.at(web.id);
+        const string assignment = !isFeasible ? "black" : (reg == -1 ? "M" : "r" + to_string(reg));
+        string fillColor;
+        if (!isFeasible) {
+            fillColor = "#000000";
+        } else if (reg == -1) {
+            fillColor = "#D3D3D3";
+        } else {
+            fillColor = colors[reg % colors.size()];
+        }
+
+        file << "        <TR>";
+        file << "<TD BGCOLOR=\"" << fillColor << "\"><FONT COLOR=\""
+             << (!isFeasible ? "#FFFFFF" : "#000000") << "\"><B>web" << web.id
+             << "</B></FONT></TD>";
+        file << "<TD ALIGN=\"LEFT\">" << escapeDotHtml(web.variableName) << "</TD>";
+        file << "<TD ALIGN=\"LEFT\">" << escapeDotHtml(formatWebRange(web)) << "</TD>";
+        file << "<TD ALIGN=\"LEFT\">" << assignment << "</TD>";
+        file << "</TR>\n";
+    }
+
+    file << "      </TABLE>\n";
+    file << "    >];\n";
+    file << "  }\n\n";
 
     // Output nodes with colors based on register assignment
     for (const auto& web : finalWebs) {
@@ -635,7 +734,9 @@ void Allocator::generateColoredDOT(const std::string& filename) const {
         file << "  web" << web.id << " [label=\"web" << web.id << " (" << web.variableName
              << ")\", ";
 
-        if (reg == -1) {
+        if (!isFeasible) {
+            file << "fillcolor=\"#000000\", fontcolor=\"#FFFFFF\"];  // failed allocation\n";
+        } else if (reg == -1) {
             file << "fillcolor=\"#D3D3D3\"];  // Memory (gray)\n";
         } else {
             int colorIdx = reg % colors.size();

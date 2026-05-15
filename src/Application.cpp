@@ -67,7 +67,6 @@ void Application::runBatchMode() {
     }
     
     allocator.generateOutputFile(outputFile);
-    cout << "Run complete. Allocation file saved to: " << outputFile << endl;
 }
 
 void Application::runInteractiveMode() {
@@ -122,7 +121,6 @@ void Application::runInteractiveMode() {
                         }
                         
                         allocator.generateOutputFile(outputFile);
-                        cout << "Run complete. Allocation file saved to: " << outputFile << endl;
                     }
                 }
                 break;
