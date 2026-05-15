@@ -174,12 +174,16 @@ bool Allocator::colorNodesDSATUR(const map<int, set<int>>& adjList,
 // helper to find next available web id for splitting
 int Allocator::nextWebId(const vector<Web>& webs) const {
     int nextId = 0;
-    for (const auto& web : webs)
+    for (const auto& web : webs) {
         if (web.id >= nextId) nextId = web.id + 1;
+    }
     return nextId;
 }
 
 pair<Web, Web> Allocator::splitWebAtBoundary(const Web& original, int newId) const {
+    // Safety check: ensure newId is different from original.id
+    if (newId == original.id) newId++;
+
     Web left;
     Web right;
 
@@ -188,7 +192,20 @@ pair<Web, Web> Allocator::splitWebAtBoundary(const Web& original, int newId) con
     left.variableName = original.variableName;
     right.variableName = original.variableName;
 
-    const size_t splitIndex = original.lines.size() / 2;
+    // Find the largest gap between consecutive program points to determine the split index.
+    int maxGap = -1;
+    size_t bestSplitIndex = 1;
+    auto it = original.lines.begin();
+    for (size_t i = 0; i < original.lines.size() - 1; ++i) {
+        int current = *it;
+        int next = *(++it);
+        if (next - current > maxGap) {
+            maxGap = next - current;
+            bestSplitIndex = i + 1;
+        }
+    }
+
+    const size_t splitIndex = bestSplitIndex;
 
     size_t index = 0;
     for (int line : original.lines) {
@@ -403,15 +420,25 @@ bool Allocator::runSplittingAllocation() {
             return false;  // We have exhausted the splits.
         }
 
-        // Find the web with the highest degree that has at least 2 lines.
-        int nodeToSplitId = -1, maxDegree = -1, splitIdx = -1;
+        // Find the web with the highest interference density (degree/lines) that has at least 2 lines.
+        // Use highest absolute degree as a tie-breaker.
+        int nodeToSplitId = -1, splitIdx = -1;
+        double maxHurt = -1.0;
+        int maxDegree = -1;
+
         for (size_t i = 0; i < finalWebs.size(); ++i) {
             int id = finalWebs[i].id;
             int degree = currentAdjList[id].size();
-            if (degree > maxDegree && finalWebs[i].lines.size() >= 2) {
-                maxDegree = degree;
-                nodeToSplitId = id;
-                splitIdx = i;
+            int numLines = finalWebs[i].lines.size();
+
+            if (numLines >= 2) {
+                double hurt = static_cast<double>(degree) / static_cast<double>(numLines);
+                if (hurt > maxHurt || (hurt == maxHurt && degree > maxDegree)) {
+                    maxHurt = hurt;
+                    maxDegree = degree;
+                    nodeToSplitId = id;
+                    splitIdx = i;
+                }
             }
         }
 
@@ -424,9 +451,9 @@ bool Allocator::runSplittingAllocation() {
 
         // Perform the split
         Web original = finalWebs[splitIdx];
+        const int newId = nextWebId(finalWebs); // Get new ID before erasing original
         finalWebs.erase(finalWebs.begin() + splitIdx);  // Remove the original web.
 
-        const int newId = nextWebId(finalWebs);
         auto [w1, w2] = splitWebAtBoundary(original, newId);
 
         finalWebs.push_back(w1);
@@ -466,6 +493,7 @@ bool Allocator::runFreeAllocation() {
         }
 
         // 3. Reset allocation and try DSATUR coloring
+        
         for (int webId : webIds) {
             allocation[webId] = -1;
         }
@@ -475,7 +503,10 @@ bool Allocator::runFreeAllocation() {
             return true;
         }
 
-        return false;  // Should never be reached
+        // If DSATUR failed, we need to spill or split. 
+        // For simplicity in this investigation, we'll just return false if it fails,
+        // but a real implementation would loop and resolve.
+        return false;
     }
 }
 
