@@ -443,8 +443,6 @@ bool Allocator::runSplittingAllocation() {
 
 bool Allocator::runFreeAllocation() {
     int N = config.numRegisters;
-    int maxSplits = 3;  // Our internal split budget.
-    int splitsUsed = 0;
 
     set<int> spilledWebs;  // Webs that we were forced to move to memory.
 

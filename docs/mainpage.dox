@@ -1,0 +1,56 @@
+/**
+ * @mainpage DA2026 - Compiler Register Allocation
+ *
+ * @section overview Overview
+ *
+ * This project implements **graph-coloring-based register allocation** for compilers.
+ * It takes variable live ranges as input, builds an interference graph where nodes
+ * represent **Webs** (merged live ranges of the same variable), and assigns physical
+ * registers via graph coloring.
+ *
+ * @section pipeline Pipeline
+ *
+ * 1. **Parsing** - Reads live ranges and register configuration from input files.
+ * 2. **Web Building** - Merges overlapping live ranges of the same variable into Webs.
+ * 3. **Interference Graph** - Constructs a graph where edges connect Webs with overlapping live ranges.
+ * 4. **Register Allocation** - Colors the graph using one of four algorithms:
+ *    - @ref Allocator::runBasicAllocation "Basic" - greedy simplification (remove nodes with degree < N)
+ *    - @ref Allocator::runSpillingAllocation "Spilling" - spills high-degree nodes to memory when stuck
+ *    - @ref Allocator::runSplittingAllocation "Splitting" - splits Webs to reduce interference
+ *    - @ref Allocator::runFreeAllocation "Free" - custom heuristic favoring splitting, with DSATUR coloring
+ * 5. **Output** - Writes allocation results and colored DOT graphs.
+ *
+ * @section classes Key Classes
+ *
+ * - @ref Application - Top-level driver (batch/interactive modes)
+ * - @ref Parser - Input file parser (live ranges + register config)
+ * - @ref InterferenceGraph - Interference graph of Webs
+ * - @ref Allocator - Graph coloring allocator with 4 algorithms
+ * - @ref Web - A live range node in the interference graph
+ * - @ref LiveRange - Raw live range read from input
+ * - @ref ConfigRegisters - Configuration (register count, algorithm, K parameter)
+ *
+ * @section usage Usage
+ *
+ * @code
+ * # Batch mode
+ * ./myProg -b ranges.txt registers.txt allocation.txt
+ *
+ * # Interactive mode (no arguments)
+ * ./myProg
+ * @endcode
+ *
+ * In interactive mode, all settings (algorithm, register count, K parameter)
+ * are configured through the menu. The output file path is prompted at run time.
+ *
+ * @section files Input Files
+ *
+ * - **ranges.txt** - Variable live ranges (one variable per line)
+ * - **registers.txt** - Configuration for batch mode (register count, algorithm, K parameter)
+ *
+ * @section output Output
+ *
+ * - **allocation.txt** - Final register assignments per Web
+ * - **allocation.txt.gv** - Interference graph DOT file
+ * - **allocation.txt_allocated.gv** - Colored graph showing register assignments
+ */

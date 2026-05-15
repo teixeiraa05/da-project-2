@@ -25,6 +25,15 @@ private:
     /** @brief Path to the output allocation file (third CLI argument in batch mode). */
     std::string outputFile;
 
+    /** @brief Algorithm chosen interactively (default: "basic"). */
+    std::string interactiveAlgorithm;
+
+    /** @brief Variant number for the config file (1-4, meaning register count). */
+    int configVariant;
+
+    /** @brief Path to the config file selected for interactive mode. */
+    std::string configFilePath;
+
     /**
      * @brief Execute the program in batch mode using `rangesFile`, `registersFile` and `outputFile`.
      *
