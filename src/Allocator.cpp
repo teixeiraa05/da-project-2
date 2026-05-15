@@ -83,105 +83,85 @@ bool Allocator::colorNodes(std::stack<int>& S, const std::map<int, std::set<int>
     return true;
 }
 
-bool Allocator::colorNodesDSATUR(const std::map<int, std::set<int>>& adjList,
-                                 const std::set<int>& webIds, int N) {
-    // DSATUR (Degree of Saturation) Algorithm:
-    // Iteratively color the uncolored vertex with the highest saturation degree.
-    // Saturation degree = number of different colors already used by neighbors.
-    // Tiebreaker: highest degree (number of neighbors).
+bool Allocator::colorNodesDSATUR(const map<int, set<int>>& adjList,
+                                  const set<int>& webIds, int N) {
+    // saturation[id] = number of DISTINCT colors used by already-colored neighbours
+    map<int, int> saturation;
+    map<int, bool> isColored;
 
-    map<int, int> saturationDegree;  // saturation degree for each uncolored vertex
-    map<int, bool> isColored;        // whether a vertex is already colored
-
-    // Initialize
-    for (int webId : webIds) {
-        saturationDegree[webId] = 0;
-        isColored[webId] = false;
+    for (int id : webIds) {
+        saturation[id] = 0;
+        isColored[id] = false;
+        allocation[id] = -1;
     }
 
-    // Color all vertices
-    for (size_t colored = 0; colored < webIds.size(); ++colored) {
-        // Find uncolored vertex with highest saturation degree (tiebreak by degree)
-        int selectedVertex = -1;
-        int maxSaturation = -1;
-        int maxDegree = -1;
+    for (size_t step = 0; step < webIds.size(); ++step) {
+        // 1. Select uncolored web with highest saturation.
+        //    Break ties by highest degree (number of active neighbours).
+        int chosen = -1;
+        int maxSat = -1;
+        int maxDeg = -1;
 
-        for (int webId : webIds) {
-            if (isColored[webId]) continue;
+        for (int id : webIds) {
+            if (isColored[id]) continue;
 
-            int sat = saturationDegree[webId];
-            int degree = 0;
-            auto it = adjList.find(webId);
-            if (it != adjList.end()) {
-                for (int neighbor : it->second) {
-                    if (webIds.count(neighbor)) degree++;
-                }
-            }
+            int sat = saturation[id];
+            int deg = 0;
+            auto it = adjList.find(id);
+            if (it != adjList.end())
+                for (int nb : it->second)
+                    if (webIds.count(nb)) deg++;
 
-            if (sat > maxSaturation || (sat == maxSaturation && degree > maxDegree)) {
-                maxSaturation = sat;
-                maxDegree = degree;
-                selectedVertex = webId;
+            if (sat > maxSat || (sat == maxSat && deg > maxDeg)) {
+                maxSat = sat;
+                maxDeg = deg;
+                chosen = id;
             }
         }
 
-        if (selectedVertex == -1) break;  // No more vertices to color
+        if (chosen == -1) break;
 
-        // Collect colors used by neighbors of selectedVertex
+        // 2. Collect colors already used by colored neighbours.
         set<int> usedColors;
-        auto it = adjList.find(selectedVertex);
-        if (it != adjList.end()) {
-            for (int neighbor : it->second) {
-                if (isColored[neighbor]) {
-                    usedColors.insert(allocation[neighbor]);
-                }
-            }
-        }
+        auto it = adjList.find(chosen);
+        if (it != adjList.end())
+            for (int nb : it->second)
+                if (isColored[nb] && allocation[nb] != -1)
+                    usedColors.insert(allocation[nb]);
 
-        // Find the first available color
+        // 3. Assign the smallest available color within [0, N).
         int assignedColor = -1;
         for (int c = 0; c < N; ++c) {
-            if (usedColors.find(c) == usedColors.end()) {
+            if (!usedColors.count(c)) {
                 assignedColor = c;
                 break;
             }
         }
 
-        if (assignedColor == -1) {
-            // No color available, spill this web
-            allocation[selectedVertex] = -1;
-        } else {
-            allocation[selectedVertex] = assignedColor;
-        }
+        allocation[chosen] = assignedColor; // -1 means no color found
+        isColored[chosen] = true;
 
-        isColored[selectedVertex] = true;
-
-        // Update saturation degrees of uncolored neighbors
-        it = adjList.find(selectedVertex);
+        // 4. Update saturation of uncolored neighbours.
+        //    Recompute the full distinct-color set to avoid double-counting
+        //    when two neighbours share the same color.
+        //    Only count valid colors (skip -1 from spilled nodes).
         if (it != adjList.end()) {
-            for (int neighbor : it->second) {
-                if (!isColored[neighbor]) {
-                    // Check if neighbor now has a new colored neighbor color
-                    set<int> neighborColors;
-                    auto nit = adjList.find(neighbor);
-                    if (nit != adjList.end()) {
-                        for (int nn : nit->second) {
-                            if (isColored[nn]) {
-                                neighborColors.insert(allocation[nn]);
-                            }
-                        }
-                    }
-                    saturationDegree[neighbor] = neighborColors.size();
-                }
+            for (int nb : it->second) {
+                if (isColored[nb]) continue;
+                set<int> neighbourColors;
+                auto nit = adjList.find(nb);
+                if (nit != adjList.end())
+                    for (int nn : nit->second)
+                        if (isColored[nn] && allocation[nn] != -1) // skip -1
+                            neighbourColors.insert(allocation[nn]);
+                saturation[nb] = neighbourColors.size();
             }
         }
     }
 
-    // Check if all vertices got a color (none spilled)
-    for (int webId : webIds) {
-        if (allocation[webId] == -1) {
-            return false;  // Failed to color
-        }
+    // 5. Return false if any web could not be colored.
+    for (int id : webIds) {
+        if (allocation[id] == -1) return false;
     }
 
     return true;
@@ -497,68 +477,6 @@ bool Allocator::runFreeAllocation() {
             return true;
         }
 
-        // 4. DSATUR failed -> PLAN A: try splitting if budget allows
-        int nodeToSplitId = -1;
-        int maxDegreeSplit = -1;
-        int splitIdx = -1;
-
-        if (splitsUsed < maxSplits) {
-            for (size_t i = 0; i < finalWebs.size(); ++i) {
-                int id = finalWebs[i].id;
-                if (spilledWebs.count(id) || allocation[id] != -1) continue;  // Spilled or colored
-                if (finalWebs[i].lines.size() < 2) continue;                  // Can't split
-
-                int degree = currentAdjList[id].size();
-                if (degree > maxDegreeSplit) {
-                    maxDegreeSplit = degree;
-                    nodeToSplitId = id;
-                    splitIdx = i;
-                }
-            }
-        }
-
-        if (nodeToSplitId != -1) {
-            // Execute the split.
-            Web original = finalWebs[splitIdx];
-            finalWebs.erase(finalWebs.begin() + splitIdx);
-
-            const int newId = nextWebId(finalWebs);
-            auto [w1, w2] = splitWebAtBoundary(original, newId);
-
-            finalWebs.push_back(w1);
-            finalWebs.push_back(w2);
-            splitsUsed++;
-            cout << "[Free] Web " << original.id << " was split." << endl;
-            continue;  // Restart the loop with the new webs.
-        }
-
-        // 5. If splitting fails or runs out -> PLAN B: spilling
-        int nodeToSpillId = -1, maxDegreeSpill = -1;
-        for (size_t i = 0; i < finalWebs.size(); ++i) {
-            int id = finalWebs[i].id;
-            if (spilledWebs.count(id) || allocation[id] != -1) continue;
-
-            int degree = currentAdjList[id].size();
-            if (degree > maxDegreeSpill) {
-                maxDegreeSpill = degree;
-                nodeToSpillId = id;
-            }
-        }
-
-        if (nodeToSpillId != -1) {
-            spilledWebs.insert(nodeToSpillId);  // Move it to memory.
-            allocation[nodeToSpillId] = -1;
-            spillCount++;
-            const Web* spilledWeb = findWebById(finalWebs, nodeToSpillId);
-            if (spilledWeb != nullptr) {
-                cout << "[Free] Web " << nodeToSpillId << " (" << spilledWeb->variableName
-                     << ") moved to memory." << endl;
-            } else {
-                cout << "[Free] Web " << nodeToSpillId << " moved to memory." << endl;
-            }
-            continue;  // Restart the loop.
-        }
-
         return false;  // Should never be reached
     }
 }
@@ -661,6 +579,13 @@ void Allocator::generateColoredDOT(const std::string& filename) const {
     std::ofstream file(filename + ".gv");
     if (!file.is_open()) return;
 
+    set<int> usedRegisters;
+    for (const auto& pair : allocation) {
+        if (pair.second >= 0) {
+            usedRegisters.insert(pair.second);
+        }
+    }
+
     // Color palette for registers - hardcoded but its fine for up to 10 registers. Memory (M) will
     // be gray.
     vector<string> colors = {"#FF6B6B", "#4ECDC4", "#45B7D1", "#FFA07A", "#98D8C8",
@@ -693,9 +618,11 @@ void Allocator::generateColoredDOT(const std::string& filename) const {
     file << "        <TR><TD BGCOLOR=\"#ECECEC\" COLSPAN=\"4\"><B>Run summary</B></TD></TR>\n";
     file << "        <TR><TD ALIGN=\"LEFT\"><B>Algorithm</B></TD><TD ALIGN=\"LEFT\" COLSPAN=\"3\">"
          << escapeDotHtml(config.algorithm) << "</TD></TR>\n";
-    file << "        <TR><TD ALIGN=\"LEFT\"><B>Registers</B></TD><TD ALIGN=\"LEFT\">"
-         << config.numRegisters << "</TD><TD ALIGN=\"LEFT\"><B>Feasible</B></TD><TD ALIGN=\"LEFT\">"
-         << (isFeasible ? "yes" : "no") << "</TD></TR>\n";
+        file << "        <TR><TD ALIGN=\"LEFT\"><B>Registers provided</B></TD><TD ALIGN=\"LEFT\">"
+            << config.numRegisters << "</TD><TD ALIGN=\"LEFT\"><B>Registers used</B></TD><TD ALIGN=\"LEFT\">"
+            << usedRegisters.size() << "</TD></TR>\n";
+        file << "        <TR><TD ALIGN=\"LEFT\"><B>Feasible</B></TD><TD ALIGN=\"LEFT\" COLSPAN=\"3\">"
+            << (isFeasible ? "yes" : "no") << "</TD></TR>\n";
     file << "        <TR><TD ALIGN=\"LEFT\"><B>Splits</B></TD><TD ALIGN=\"LEFT\">"
          << splitCount << "</TD><TD ALIGN=\"LEFT\"><B>Spills</B></TD><TD ALIGN=\"LEFT\">"
          << spillCount << "</TD></TR>\n";
