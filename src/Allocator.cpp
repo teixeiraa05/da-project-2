@@ -13,10 +13,9 @@ using namespace std;
 
 Allocator::Allocator(const InterferenceGraph& g, const ConfigRegisters& c) : graph(g), config(c) {
     isFeasible = true;
-        splitCount = 0;
-        spillCount = 0;
-    finalWebs =
-        graph.getWebs();  // Copy the original webs so they can be modified during splitting.
+    splitCount = 0;
+    spillCount = 0;
+    finalWebs = graph.getWebs();
 
     for (const auto& web : finalWebs) {
         allocation[web.id] = -1;
@@ -24,8 +23,8 @@ Allocator::Allocator(const InterferenceGraph& g, const ConfigRegisters& c) : gra
 }
 
 void Allocator::run() {
-        splitCount = 0;
-        spillCount = 0;
+    splitCount = 0;
+    spillCount = 0;
 
     if (config.algorithm == "basic") {
         isFeasible = runBasicAllocation();
@@ -33,18 +32,19 @@ void Allocator::run() {
         isFeasible = runSpillingAllocation();
     } else if (config.algorithm == "splitting") {
         isFeasible = runSplittingAllocation();
-    } else if (config.algorithm == "free") {  // Our custom algorithm.
+    } else if (config.algorithm == "free") {
         isFeasible = runFreeAllocation();
     }
 
     if (!isFeasible) {
-        cerr << "Warning: The allocation was not possible with the given parameters." << endl;
+        cerr << "Warning: Allocation not possible with given parameters." << endl;
         config.numRegisters = 0;
         for (const auto& web : finalWebs) {
             allocation[web.id] = -1;
         }
     }
 }
+
 // =========================================================
 // Coloring algorithms
 // =========================================================
@@ -79,13 +79,10 @@ bool Allocator::colorNodes(std::stack<int>& S, const std::map<int, std::set<int>
             return false;
         }
     }
-
     return true;
 }
 
-bool Allocator::colorNodesDSATUR(const map<int, set<int>>& adjList,
-                                  const set<int>& webIds, int N) {
-    // saturation[id] = number of DISTINCT colors used by already-colored neighbours
+bool Allocator::colorNodesDSATUR(const map<int, set<int>>& adjList, const set<int>& webIds, int N) {
     map<int, int> saturation;
     map<int, bool> isColored;
 
@@ -96,15 +93,12 @@ bool Allocator::colorNodesDSATUR(const map<int, set<int>>& adjList,
     }
 
     for (size_t step = 0; step < webIds.size(); ++step) {
-        // 1. Select uncolored web with highest saturation.
-        //    Break ties by highest degree (number of active neighbours).
         int chosen = -1;
         int maxSat = -1;
         int maxDeg = -1;
 
         for (int id : webIds) {
             if (isColored[id]) continue;
-
             int sat = saturation[id];
             int deg = 0;
             auto it = adjList.find(id);
@@ -121,15 +115,12 @@ bool Allocator::colorNodesDSATUR(const map<int, set<int>>& adjList,
 
         if (chosen == -1) break;
 
-        // 2. Collect colors already used by colored neighbours.
         set<int> usedColors;
         auto it = adjList.find(chosen);
         if (it != adjList.end())
             for (int nb : it->second)
-                if (isColored[nb] && allocation[nb] != -1)
-                    usedColors.insert(allocation[nb]);
+                if (isColored[nb] && allocation[nb] != -1) usedColors.insert(allocation[nb]);
 
-        // 3. Assign the smallest available color within [0, N).
         int assignedColor = -1;
         for (int c = 0; c < N; ++c) {
             if (!usedColors.count(c)) {
@@ -138,13 +129,9 @@ bool Allocator::colorNodesDSATUR(const map<int, set<int>>& adjList,
             }
         }
 
-        allocation[chosen] = assignedColor; // -1 means no color found
+        allocation[chosen] = assignedColor;
         isColored[chosen] = true;
 
-        // 4. Update saturation of uncolored neighbours.
-        //    Recompute the full distinct-color set to avoid double-counting
-        //    when two neighbours share the same color.
-        //    Only count valid colors (skip -1 from spilled nodes).
         if (it != adjList.end()) {
             for (int nb : it->second) {
                 if (isColored[nb]) continue;
@@ -152,18 +139,16 @@ bool Allocator::colorNodesDSATUR(const map<int, set<int>>& adjList,
                 auto nit = adjList.find(nb);
                 if (nit != adjList.end())
                     for (int nn : nit->second)
-                        if (isColored[nn] && allocation[nn] != -1) // skip -1
+                        if (isColored[nn] && allocation[nn] != -1)
                             neighbourColors.insert(allocation[nn]);
                 saturation[nb] = neighbourColors.size();
             }
         }
     }
 
-    // 5. Return false if any web could not be colored.
     for (int id : webIds) {
         if (allocation[id] == -1) return false;
     }
-
     return true;
 }
 
@@ -171,7 +156,6 @@ bool Allocator::colorNodesDSATUR(const map<int, set<int>>& adjList,
 // Splitting algorithms & helpers
 // =========================================================
 
-// helper to find next available web id for splitting
 int Allocator::nextWebId(const vector<Web>& webs) const {
     int nextId = 0;
     for (const auto& web : webs) {
@@ -180,57 +164,66 @@ int Allocator::nextWebId(const vector<Web>& webs) const {
     return nextId;
 }
 
-pair<Web, Web> Allocator::splitWebAtBoundary(const Web& original, int newId) const {
-    // Safety check: ensure newId is different from original.id
-    if (newId == original.id) newId++;
-
+std::pair<Web, Web> Allocator::splitWebAtPoint(const Web& original, int newId,
+                                               size_t splitIndex) const {
     Web left;
     Web right;
-
     left.id = original.id;
     right.id = newId;
     left.variableName = original.variableName;
     right.variableName = original.variableName;
 
-    // Find the largest gap between consecutive program points to determine the split index.
-    int maxGap = -1;
-    size_t bestSplitIndex = 1;
-    auto it = original.lines.begin();
-    for (size_t i = 0; i < original.lines.size() - 1; ++i) {
-        int current = *it;
-        int next = *(++it);
-        if (next - current > maxGap) {
-            maxGap = next - current;
-            bestSplitIndex = i + 1;
-        }
-    }
-
-    const size_t splitIndex = bestSplitIndex;
-
     size_t index = 0;
     for (int line : original.lines) {
-        const bool goesLeft = index < splitIndex;
-        const bool goesRight = index >= splitIndex;
-
-        if (goesLeft) {
+        if (index < splitIndex) {
             left.lines.insert(line);
-            if (original.defLines.find(line) != original.defLines.end()) left.defLines.insert(line);
-            if (original.useEndLines.find(line) != original.useEndLines.end())
-                left.useEndLines.insert(line);
-        }
-
-        if (goesRight) {
+            if (original.defLines.count(line)) left.defLines.insert(line);
+            if (original.useEndLines.count(line)) left.useEndLines.insert(line);
+        } else {
             right.lines.insert(line);
-            if (original.defLines.find(line) != original.defLines.end())
-                right.defLines.insert(line);
-            if (original.useEndLines.find(line) != original.useEndLines.end())
-                right.useEndLines.insert(line);
+            if (original.defLines.count(line)) right.defLines.insert(line);
+            if (original.useEndLines.count(line)) right.useEndLines.insert(line);
         }
+        index++;
+    }
+    return {left, right};
+}
 
-        ++index;
+int Allocator::evaluateColorability(const std::vector<Web>& webs, int N) const {
+    std::map<int, std::set<int>> adj;
+    for (size_t i = 0; i < webs.size(); ++i) {
+        adj[webs[i].id];
+        for (size_t j = i + 1; j < webs.size(); ++j) {
+            if (webs[i].interferesWith(webs[j])) {
+                adj[webs[i].id].insert(webs[j].id);
+                adj[webs[j].id].insert(webs[i].id);
+            }
+        }
     }
 
-    return {left, right};
+    std::map<int, bool> inGraph;
+    for (const auto& w : webs) inGraph[w.id] = true;
+    std::stack<int> S;
+    int nodesRemaining = webs.size();
+
+    while (nodesRemaining > 0) {
+        bool found = false;
+        for (auto& pair : adj) {
+            if (!inGraph[pair.first]) continue;
+            int deg = 0;
+            for (int nb : pair.second)
+                if (inGraph[nb]) deg++;
+            if (deg < N) {
+                inGraph[pair.first] = false;
+                S.push(pair.first);
+                nodesRemaining--;
+                found = true;
+                break;
+            }
+        }
+        if (!found) break;
+    }
+    return nodesRemaining;
 }
 
 const Web* Allocator::findWebById(const vector<Web>& webs, int webId) const {
@@ -240,15 +233,12 @@ const Web* Allocator::findWebById(const vector<Web>& webs, int webId) const {
     return nullptr;
 }
 
-
 // =========================================================
 // Spilling helpers
 // =========================================================
 
-// Spill selection: choose the active node with the highest degree.
 bool Allocator::spillNode(const std::map<int, std::set<int>>& originalAdjList,
                           std::map<int, bool>& inGraph, int& nodesRemaining, int& spilledNodeId) {
-    // Select the active node with the highest degree (counting only active neighbors).
     spilledNodeId = -1;
     int highestDegree = -1;
     size_t smallestFootprint = numeric_limits<size_t>::max();
@@ -264,7 +254,6 @@ bool Allocator::spillNode(const std::map<int, std::set<int>>& originalAdjList,
 
         const Web* web = findWebById(finalWebs, nodeId);
         if (web == nullptr) continue;
-
         const size_t footprint = web->defLines.size() + web->useEndLines.size();
 
         if (degree > highestDegree || (degree == highestDegree && footprint < smallestFootprint)) {
@@ -275,7 +264,6 @@ bool Allocator::spillNode(const std::map<int, std::set<int>>& originalAdjList,
     }
 
     if (spilledNodeId == -1) return false;
-
     inGraph[spilledNodeId] = false;
     allocation[spilledNodeId] = -1;
     nodesRemaining--;
@@ -305,7 +293,7 @@ void Allocator::rebuildAdjacency(std::map<int, std::set<int>>& outAdj,
     for (size_t i = 0; i < finalWebs.size(); ++i) {
         int id1 = finalWebs[i].id;
         if (skipWebs && skipWebs->count(id1)) continue;
-        outAdj[id1];  // Ensure entry exists
+        outAdj[id1];
         for (size_t j = i + 1; j < finalWebs.size(); ++j) {
             int id2 = finalWebs[j].id;
             if (skipWebs && skipWebs->count(id2)) continue;
@@ -326,54 +314,36 @@ bool Allocator::runBasicAllocation() {
     const auto& originalAdjList = graph.getAdjList();
     map<int, bool> inGraph;
     int nodesRemaining = finalWebs.size();
-
     for (const auto& web : finalWebs) inGraph[web.id] = true;
     stack<int> S;
-
     while (nodesRemaining > 0) {
         if (!simplifyFindAndRemove(originalAdjList, inGraph, N, S, nodesRemaining)) {
-            cerr << "Error: Basic allocation failed because the graph is not greedily colorable with "
-                 << N << " registers." << endl;
+            cerr << "Error: Basic allocation failed." << endl;
             return false;
         }
     }
-
     return colorNodes(S, originalAdjList, N);
 }
 
 bool Allocator::runSpillingAllocation() {
-    // Same as before, adapted to use finalWebs.
     int N = config.numRegisters;
     int maxSpills = config.k_param;
     int spillsUsed = 0;
     const auto& originalAdjList = graph.getAdjList();
     map<int, bool> inGraph;
     int nodesRemaining = finalWebs.size();
-
     for (const auto& web : finalWebs) inGraph[web.id] = true;
     stack<int> S;
-
     while (nodesRemaining > 0) {
         bool found = simplifyFindAndRemove(originalAdjList, inGraph, N, S, nodesRemaining);
-
         if (!found) {
             if (spillsUsed >= maxSpills) return false;
-
             int nodeToSpill = -1;
             if (!spillNode(originalAdjList, inGraph, nodesRemaining, nodeToSpill)) return false;
             spillsUsed++;
-            const Web* spilledWeb = findWebById(finalWebs, nodeToSpill);
-            if (spilledWeb != nullptr) {
-                cout << "[Spill] Web " << nodeToSpill << " (" << spilledWeb->variableName
-                     << ") moved to memory." << endl;
-            } else {
-                cout << "[Spill] Web " << nodeToSpill << " moved to memory." << endl;
-            }
             spillCount++;
         }
     }
-
-    cout << "[Spill] Summary: " << spillsUsed << " used of " << maxSpills << " allowed." << endl;
     return colorNodes(S, originalAdjList, N);
 }
 
@@ -382,13 +352,10 @@ bool Allocator::runSplittingAllocation() {
     int maxSplits = config.k_param;
     int splitsUsed = 0;
 
-    // Main loop: try to color the graph, and if it fails, perform one split and restart.
     while (true) {
-        // 1. Rebuild the local adjacency list for the current webs.
         map<int, set<int>> currentAdjList;
         rebuildAdjacency(currentAdjList, nullptr);
 
-        // 2. Try to simplify (as in Basic).
         map<int, bool> inGraph;
         int nodesRemaining = finalWebs.size();
         for (const auto& web : finalWebs) inGraph[web.id] = true;
@@ -396,134 +363,220 @@ bool Allocator::runSplittingAllocation() {
         bool stuck = false;
 
         while (nodesRemaining > 0) {
-            bool found = simplifyFindAndRemove(currentAdjList, inGraph, N, S, nodesRemaining);
-
-            if (!found) {
+            if (!simplifyFindAndRemove(currentAdjList, inGraph, N, S, nodesRemaining)) {
                 stuck = true;
                 break;
             }
         }
 
-        // 3. If we did not get stuck, we can color the graph and finish successfully.
         if (!stuck) {
             allocation.clear();
-            for (const auto& web : finalWebs) allocation[web.id] = -1;  // Reset.
-            cout << "[Split] Summary: " << splitsUsed << " used of " << maxSplits << " allowed."
-                 << endl;
+            for (const auto& web : finalWebs) allocation[web.id] = -1;
             return colorNodes(S, currentAdjList, N);
         }
 
-        // 4. If we got stuck, we must split.
-        if (splitsUsed >= maxSplits) {
-            cout << "[Split] Summary: " << splitsUsed << " used of " << maxSplits << " allowed."
-                 << endl;
-            return false;  // We have exhausted the splits.
-        }
+        if (splitsUsed >= maxSplits) return false;
 
-        // Find the web with the highest interference density (degree/lines) that has at least 2 lines.
-        // Use highest absolute degree as a tie-breaker.
         int nodeToSplitId = -1, splitIdx = -1;
-        double maxHurt = -1.0;
         int maxDegree = -1;
-
         for (size_t i = 0; i < finalWebs.size(); ++i) {
-            int id = finalWebs[i].id;
-            int degree = currentAdjList[id].size();
-            int numLines = finalWebs[i].lines.size();
-
-            if (numLines >= 2) {
-                double hurt = static_cast<double>(degree) / static_cast<double>(numLines);
-                if (hurt > maxHurt || (hurt == maxHurt && degree > maxDegree)) {
-                    maxHurt = hurt;
-                    maxDegree = degree;
-                    nodeToSplitId = id;
-                    splitIdx = i;
-                }
+            int deg = currentAdjList[finalWebs[i].id].size();
+            if (finalWebs[i].lines.size() >= 2 && deg > maxDegree) {
+                maxDegree = deg;
+                nodeToSplitId = finalWebs[i].id;
+                splitIdx = i;
             }
         }
 
-        if (nodeToSplitId == -1) {
-            cout << "[Split] No splittable web was found." << endl;
-            cout << "[Split] Summary: " << splitsUsed << " used of " << maxSplits << " allowed."
-                 << endl;
-            return false;
+        if (nodeToSplitId == -1) return false;
+
+        Web original = finalWebs[splitIdx];
+        const int newId = nextWebId(finalWebs);
+        size_t bestPoint = 1;
+        int minStuck = evaluateColorability(finalWebs, N);  // Base line
+
+        for (size_t p = 1; p < original.lines.size(); ++p) {
+            auto [w1, w2] = splitWebAtPoint(original, newId, p);
+            vector<Web> trialWebs;
+            for (const auto& fw : finalWebs) {
+                if (fw.id == original.id) continue;
+                trialWebs.push_back(fw);
+            }
+            trialWebs.push_back(w1);
+            trialWebs.push_back(w2);
+
+            int stuckCount = evaluateColorability(trialWebs, N);
+            if (stuckCount < minStuck) {
+                minStuck = stuckCount;
+                bestPoint = p;
+            }
+            if (minStuck == 0) break;
         }
 
-        // Perform the split
-        Web original = finalWebs[splitIdx];
-        const int newId = nextWebId(finalWebs); // Get new ID before erasing original
-        finalWebs.erase(finalWebs.begin() + splitIdx);  // Remove the original web.
-
-        auto [w1, w2] = splitWebAtBoundary(original, newId);
-
+        finalWebs.erase(finalWebs.begin() + splitIdx);
+        auto [w1, w2] = splitWebAtPoint(original, newId, bestPoint);
         finalWebs.push_back(w1);
         finalWebs.push_back(w2);
         splitsUsed++;
         splitCount++;
-
-        cout << "[Split] Web " << original.id << " was split into Web " << w1.id << " and Web "
-             << w2.id << "." << endl;
-
-        // The while(true) loop repeats and tries to allocate the new graph again.
+        cout << "[Split] Web " << original.id << " split at point " << bestPoint << "." << endl;
     }
+}
+
+// =========================================================
+// Greedy clique finder Helper (for free allocation)
+// =========================================================
+
+set<int> Allocator::findGreedyClique(const map<int, set<int>>& adjList,
+                                     const set<int>& webIds) const {
+    set<int> maxClique;
+    for (int startId : webIds) {
+        set<int> currentClique;
+        currentClique.insert(startId);
+        vector<pair<int, int>> neighbors;
+        auto it = adjList.find(startId);
+        if (it != adjList.end()) {
+            for (int nb : it->second) {
+                if (webIds.count(nb)) {
+                    int deg = 0;
+                    auto nit = adjList.find(nb);
+                    if (nit != adjList.end())
+                        for (int nnb : nit->second)
+                            if (webIds.count(nnb)) deg++;
+                    neighbors.push_back({nb, deg});
+                }
+            }
+        }
+        sort(neighbors.begin(), neighbors.end(),
+             [](const auto& a, const auto& b) { return a.second > b.second; });
+
+        for (const auto& nbPair : neighbors) {
+            int nb = nbPair.first;
+            bool interferesWithAll = true;
+            for (int cliqueNode : currentClique) {
+                auto cit = adjList.find(cliqueNode);
+                if (cit == adjList.end() || cit->second.find(nb) == cit->second.end()) {
+                    interferesWithAll = false;
+                    break;
+                }
+            }
+            if (interferesWithAll) currentClique.insert(nb);
+        }
+        if (currentClique.size() > maxClique.size()) maxClique = currentClique;
+    }
+    return maxClique;
 }
 
 bool Allocator::runFreeAllocation() {
     int N = config.numRegisters;
+    set<int> spilledWebs;
+    int currentRunSplits = 0;
+    const int SPLIT_LIMIT = 3;
 
-    set<int> spilledWebs;  // Webs that we were forced to move to memory.
-
-    // Main loop that guarantees the compiler keeps going.
     while (true) {
-        // 1. Rebuild the adjacency list, ignoring the webs already moved to memory.
         map<int, set<int>> currentAdjList;
         rebuildAdjacency(currentAdjList, &spilledWebs);
 
-        // 2. Collect web IDs to color (exclude spilled ones)
         set<int> webIds;
         for (const auto& web : finalWebs) {
-            if (!spilledWebs.count(web.id)) {
-                webIds.insert(web.id);
+            if (!spilledWebs.count(web.id)) webIds.insert(web.id);
+        }
+
+        if (webIds.empty()) return true;
+
+        set<int> clique = findGreedyClique(currentAdjList, webIds);
+        if (clique.size() > static_cast<size_t>(N)) {
+            int victimId = -1, maxDeg = -1;
+            for (int id : clique) {
+                int deg = currentAdjList[id].size();
+                if (deg > maxDeg) {
+                    maxDeg = deg;
+                    victimId = id;
+                }
+            }
+            spilledWebs.insert(victimId);
+            spillCount++;
+            continue;
+        }
+
+        for (int webId : webIds) allocation[webId] = -1;
+        if (colorNodesDSATUR(currentAdjList, webIds, N)) return true;
+
+        int hardestNodeId = -1, maxDeg = -1;
+        for (int id : webIds) {
+            if (allocation[id] == -1) {
+                int deg = currentAdjList[id].size();
+                if (deg > maxDeg) {
+                    maxDeg = deg;
+                    hardestNodeId = id;
+                }
             }
         }
 
-        if (webIds.empty()) {
-            cout << "[Free] All webs were processed. Some were moved to memory." << endl;
-            return true;
-        }
+        if (hardestNodeId != -1) {
+            const Web* w = findWebById(finalWebs, hardestNodeId);
+            if (currentRunSplits < SPLIT_LIMIT && w && w->lines.size() >= 2) {
+                int splitIdx = -1;
+                for (size_t i = 0; i < finalWebs.size(); ++i) {
+                    if (finalWebs[i].id == hardestNodeId) {
+                        splitIdx = i;
+                        break;
+                    }
+                }
+                Web original = finalWebs[splitIdx];
+                const int newId = nextWebId(finalWebs);
 
-        // 3. Reset allocation and try DSATUR coloring
-        
-        for (int webId : webIds) {
-            allocation[webId] = -1;
-        }
+                size_t bestPoint = 1;
+                int minStuck = numeric_limits<int>::max();
+                for (size_t p = 1; p < original.lines.size(); ++p) {
+                    auto [tw1, tw2] = splitWebAtPoint(original, newId, p);
+                    vector<Web> trialWebs;
+                    for (const auto& fw : finalWebs) {
+                        if (fw.id == original.id || spilledWebs.count(fw.id)) continue;
+                        trialWebs.push_back(fw);
+                    }
+                    trialWebs.push_back(tw1);
+                    trialWebs.push_back(tw2);
 
-        if (colorNodesDSATUR(currentAdjList, webIds, N)) {
-            cout << "[Free] DSATUR coloring completed successfully." << endl;
-            return true;
-        }
+                    int stuckCount = evaluateColorability(trialWebs, N);
+                    if (stuckCount < minStuck) {
+                        minStuck = stuckCount;
+                        bestPoint = p;
+                    }
+                    if (minStuck == 0) break;
+                }
 
-        // If DSATUR failed, we need to spill or split. 
-        // For simplicity in this investigation, we'll just return false if it fails,
-        // but a real implementation would loop and resolve.
+                finalWebs.erase(finalWebs.begin() + splitIdx);
+                auto [w1, w2] = splitWebAtPoint(original, newId, bestPoint);
+                finalWebs.push_back(w1);
+                finalWebs.push_back(w2);
+                currentRunSplits++;
+                splitCount++;
+                cout << "[Free] Splitting Web " << hardestNodeId << " at point " << bestPoint << "."
+                     << endl;
+            } else {
+                spilledWebs.insert(hardestNodeId);
+                spillCount++;
+            }
+            continue;
+        }
         return false;
     }
 }
 
+// =========================================================
+// File output and DOT generation
+// =========================================================
+
 void Allocator::generateOutputFile(const string& filename) const {
     ofstream file(filename);
     if (!file.is_open()) return;
-
     set<int> usedRegisters;
-    for (const auto& pair : allocation) {
-        if (pair.second >= 0) {
-            usedRegisters.insert(pair.second);
-        }
-    }
+    for (const auto& pair : allocation)
+        if (pair.second >= 0) usedRegisters.insert(pair.second);
 
     file << "# Total number of webs followed by the listing of the program points of each one\n";
-    file << "# program points in each web are sorted in ascending order\n";
-    file << "webs: " << finalWebs.size() << "\n";  // Use the final webs.
+    file << "webs: " << finalWebs.size() << "\n";
 
     for (const auto& web : finalWebs) {
         file << "web" << web.id << ": ";
@@ -531,15 +584,10 @@ void Allocator::generateOutputFile(const string& filename) const {
         for (int line : web.lines) {
             if (!first) file << ",";
             file << line;
-
-            const bool isDef = (web.defLines.find(line) != web.defLines.end());
-            const bool isLastUse = (web.useEndLines.find(line) != web.useEndLines.end());
-            // Suppress merged boundary points that became both def and last-use on the same line.
-            if (!(isDef && isLastUse)) {
-                if (isDef) file << "+";
-                if (isLastUse) file << "-";
+            if (!(web.defLines.count(line) && web.useEndLines.count(line))) {
+                if (web.defLines.count(line)) file << "+";
+                if (web.useEndLines.count(line)) file << "-";
             }
-
             first = false;
         }
         file << "\n";
@@ -547,7 +595,6 @@ void Allocator::generateOutputFile(const string& filename) const {
 
     file << "# Total number of registers used, followed by assignment to webs\n";
     file << "registers: " << usedRegisters.size() << "\n";
-
     for (const auto& web : finalWebs) {
         int reg = allocation.at(web.id);
         if (reg == -1)
@@ -555,32 +602,23 @@ void Allocator::generateOutputFile(const string& filename) const {
         else
             file << "r" << reg << ": web" << web.id << "\n";
     }
-
     file.close();
     cout << "Allocation report written to: " << filename << endl;
 }
 
 string Allocator::escapeDotHtml(const string& text) const {
     string escaped;
-    escaped.reserve(text.size());
     for (char ch : text) {
-        switch (ch) {
-            case '&':
-                escaped += "&amp;";
-                break;
-            case '<':
-                escaped += "&lt;";
-                break;
-            case '>':
-                escaped += "&gt;";
-                break;
-            case '"':
-                escaped += "&quot;";
-                break;
-            default:
-                escaped.push_back(ch);
-                break;
-        }
+        if (ch == '&')
+            escaped += "&amp;";
+        else if (ch == '<')
+            escaped += "&lt;";
+        else if (ch == '>')
+            escaped += "&gt;";
+        else if (ch == '"')
+            escaped += "&quot;";
+        else
+            escaped.push_back(ch);
     }
     return escaped;
 }
@@ -591,14 +629,10 @@ string Allocator::formatWebRange(const Web& web) const {
     for (int line : web.lines) {
         if (!first) out << ",";
         out << line;
-
-        const bool isDef = (web.defLines.find(line) != web.defLines.end());
-        const bool isLastUse = (web.useEndLines.find(line) != web.useEndLines.end());
-        if (!(isDef && isLastUse)) {
-            if (isDef) out << "+";
-            if (isLastUse) out << "-";
+        if (!(web.defLines.count(line) && web.useEndLines.count(line))) {
+            if (web.defLines.count(line)) out << "+";
+            if (web.useEndLines.count(line)) out << "-";
         }
-
         first = false;
     }
     return out.str();
@@ -609,109 +643,50 @@ void Allocator::generateColoredDOT(const std::string& filename) const {
     if (!file.is_open()) return;
 
     set<int> usedRegisters;
-    for (const auto& pair : allocation) {
-        if (pair.second >= 0) {
-            usedRegisters.insert(pair.second);
-        }
-    }
+    for (const auto& pair : allocation)
+        if (pair.second >= 0) usedRegisters.insert(pair.second);
 
-    // Color palette for registers - hardcoded but its fine for up to 10 registers. Memory (M) will
-    // be gray.
     vector<string> colors = {"#FF6B6B", "#4ECDC4", "#45B7D1", "#FFA07A", "#98D8C8",
                              "#F7DC6F", "#BB8FCE", "#85C1E2", "#F8B88B", "#A8E6CF"};
 
-    file << "graph {\n";
-    file << "  labelloc = top;\n";
-    file << "  labeljust = left;\n";
-    file << "  fontname = calibri;\n";
-    file << "  fontsize = 16;\n";
-    file << "  pad = 0.45;\n";
-    file << "  nodesep = 0.9;\n";
-    file << "  ranksep = 1.15;\n";
-    file << "  rankdir = LR;\n";
+    file << "graph {\n  labelloc = top;\n  labeljust = left;\n  fontname = calibri;\n  fontsize = "
+            "16;\n";
+    file << "  pad = 0.45;\n  nodesep = 0.9;\n  ranksep = 1.15;\n  rankdir = LR;\n";
     file << "  node [shape=circle, style=filled];\n\n";
 
     map<int, set<int>> currentAdjList;
     rebuildAdjacency(currentAdjList, nullptr);
 
-    file << "  subgraph cluster_legend {\n";
-    file << "    label=\"Allocation legend\";\n";
-    file << "    labelloc=top;\n";
-    file << "    fontsize=14;\n";
-    file << "    style=rounded;\n";
-    file << "    color=\"#7A7A7A\";\n";
-    file << "    margin=24;\n";
-    file << "    rank=sink;\n";
-    file << "    legend_node [shape=plain, margin=0, label=<\n";
-    file << "      <TABLE BORDER=\"1\" CELLBORDER=\"1\" CELLSPACING=\"0\" CELLPADDING=\"5\">\n";
-    file << "        <TR><TD BGCOLOR=\"#ECECEC\" COLSPAN=\"4\"><B>Run summary</B></TD></TR>\n";
-    file << "        <TR><TD ALIGN=\"LEFT\"><B>Algorithm</B></TD><TD ALIGN=\"LEFT\" COLSPAN=\"3\">"
-         << escapeDotHtml(config.algorithm) << "</TD></TR>\n";
-        file << "        <TR><TD ALIGN=\"LEFT\"><B>Registers provided</B></TD><TD ALIGN=\"LEFT\">"
-            << config.numRegisters << "</TD><TD ALIGN=\"LEFT\"><B>Registers used</B></TD><TD ALIGN=\"LEFT\">"
-            << usedRegisters.size() << "</TD></TR>\n";
-        file << "        <TR><TD ALIGN=\"LEFT\"><B>Feasible</B></TD><TD ALIGN=\"LEFT\" COLSPAN=\"3\">"
-            << (isFeasible ? "yes" : "no") << "</TD></TR>\n";
-    file << "        <TR><TD ALIGN=\"LEFT\"><B>Splits</B></TD><TD ALIGN=\"LEFT\">"
-         << splitCount << "</TD><TD ALIGN=\"LEFT\"><B>Spills</B></TD><TD ALIGN=\"LEFT\">"
+    file << "  subgraph cluster_legend {\n    label=\"Allocation legend\";\n    legend_node "
+            "[shape=plain, label=<\n";
+    file << "      <TABLE BORDER=\"1\" CELLBORDER=\"1\" CELLSPACING=\"0\">\n";
+    file << "        <TR><TD COLSPAN=\"4\"><B>Run summary</B></TD></TR>\n";
+    file << "        <TR><TD>Algorithm</TD><TD COLSPAN=\"3\">" << escapeDotHtml(config.algorithm)
+         << "</TD></TR>\n";
+    file << "        <TR><TD>Registers used</TD><TD>" << usedRegisters.size()
+         << "</TD><TD>Feasible</TD><TD>" << (isFeasible ? "yes" : "no") << "</TD></TR>\n";
+    file << "        <TR><TD>Splits</TD><TD>" << splitCount << "</TD><TD>Spills</TD><TD>"
          << spillCount << "</TD></TR>\n";
-    file << "        <TR><TD BGCOLOR=\"#ECECEC\" COLSPAN=\"4\"><B>Web details</B></TD></TR>\n";
-    file << "        <TR><TD><B>Node</B></TD><TD><B>Variable</B></TD><TD><B>Live range</B></TD><TD><B>Assignment</B></TD></TR>\n";
-
-    for (const auto& web : finalWebs) {
-        const int reg = allocation.at(web.id);
-        const string assignment = !isFeasible ? "black" : (reg == -1 ? "M" : "r" + to_string(reg));
-        string fillColor;
-        if (!isFeasible) {
-            fillColor = "#000000";
-        } else if (reg == -1) {
-            fillColor = "#D3D3D3";
-        } else {
-            fillColor = colors[reg % colors.size()];
-        }
-
-        file << "        <TR>";
-        file << "<TD BGCOLOR=\"" << fillColor << "\"><FONT COLOR=\""
-             << (!isFeasible ? "#FFFFFF" : "#000000") << "\"><B>web" << web.id
-             << "</B></FONT></TD>";
-        file << "<TD ALIGN=\"LEFT\">" << escapeDotHtml(web.variableName) << "</TD>";
-        file << "<TD ALIGN=\"LEFT\">" << escapeDotHtml(formatWebRange(web)) << "</TD>";
-        file << "<TD ALIGN=\"LEFT\">" << assignment << "</TD>";
-        file << "</TR>\n";
-    }
-
-    file << "      </TABLE>\n";
-    file << "    >];\n";
-    file << "  }\n\n";
-
-    // Output nodes with colors based on register assignment
+    file << "        <TR><TD COLSPAN=\"4\"><B>Web details</B></TD></TR>\n";
     for (const auto& web : finalWebs) {
         int reg = allocation.at(web.id);
+        string c = (reg == -1) ? "#D3D3D3" : colors[reg % colors.size()];
+        file << "        <TR><TD BGCOLOR=\"" << c << "\">web" << web.id << "</TD><TD>"
+             << escapeDotHtml(web.variableName) << "</TD><TD>" << escapeDotHtml(formatWebRange(web))
+             << "</TD><TD>" << (reg == -1 ? "M" : "r" + to_string(reg)) << "</TD></TR>\n";
+    }
+    file << "      </TABLE>>];\n  }\n";
+
+    for (const auto& web : finalWebs) {
+        int reg = allocation.at(web.id);
+        string c = (reg == -1) ? "#D3D3D3" : colors[reg % colors.size()];
         file << "  web" << web.id << " [label=\"web" << web.id << " (" << web.variableName
-             << ")\", ";
-
-        if (!isFeasible) {
-            file << "fillcolor=\"#000000\", fontcolor=\"#FFFFFF\"];  // failed allocation\n";
-        } else if (reg == -1) {
-            file << "fillcolor=\"#D3D3D3\"];  // Memory (gray)\n";
-        } else {
-            int colorIdx = reg % colors.size();
-            file << "fillcolor=\"" << colors[colorIdx] << "\"];  // r" << reg << "\n";
-        }
+             << ")\", fillcolor=\"" << c << "\"];\n";
     }
 
-    file << "\n";
-
-    // Output undirected edges from the current transformed adjacency list (single edge per pair)
     for (const auto& pair : currentAdjList) {
-        int src = pair.first;
-        for (int dst : pair.second) {
-            if (src < dst) {
-                file << "  web" << src << " -- web" << dst << ";\n";
-            }
-        }
+        for (int dst : pair.second)
+            if (pair.first < dst) file << "  web" << pair.first << " -- web" << dst << ";\n";
     }
-
     file << "}\n";
-    file.close();
 }

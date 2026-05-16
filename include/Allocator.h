@@ -56,13 +56,22 @@ private:
     std::string escapeDotHtml(const std::string& text) const;
     
     /**
-     * @brief Splits a web into two halves at the midpoint of its line set.
+     * @brief Splits a web into two at a specific point in its program line set.
      * @param original The web to split.
      * @param newId Identifier for the newly created web.
+     * @param splitIndex The index in the original lines set where the split occurs.
      * @return A pair containing the left and right split webs.
      */
-    std::pair<Web, Web> splitWebAtBoundary(const Web& original, int newId) const;
-     
+    std::pair<Web, Web> splitWebAtPoint(const Web& original, int newId, size_t splitIndex) const;
+
+    /**
+     * @brief Evaluates the colorability of a hypothetical graph configuration.
+     * @param webs The candidate set of webs.
+     * @param N Number of available registers.
+     * @return The number of nodes that remain "stuck" (degree >= N) after simplification.
+     */
+    int evaluateColorability(const std::vector<Web>& webs, int N) const;
+
     /**
      * @brief Simplification step: find a node with degree < N, remove it from the graph,
      * push it onto the stack and decrement the remaining node count.
@@ -114,9 +123,18 @@ private:
      */
     bool colorNodesDSATUR(const std::map<int, std::set<int>>& adjList,
         const std::set<int>& webIds, int N);
+
+    /**
+     * @brief Finds a clique (complete subgraph) using a greedy heuristic.
+     * @param adjList Current adjacency list.
+     * @param webIds Set of active web IDs to consider.
+     * @return A set of Web IDs forming the detected clique.
+     */
+    std::set<int> findGreedyClique(const std::map<int, std::set<int>>& adjList,
+        const std::set<int>& webIds) const;
         
-        /**
-         * @brief Rebuilds the adjacency list for the current `finalWebs` set.
+    /**
+     * @brief Rebuilds the adjacency list for the current `finalWebs` set.
      * @param outAdj Output adjacency list mapping web id -> neighbor ids.
      * @param skipWebs Optional pointer to a set of web ids to ignore (e.g., spilled webs). If nullptr, no webs are skipped.
      */
