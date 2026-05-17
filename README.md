@@ -111,7 +111,7 @@ The allocator splits **Web 0** into two fragments (**Web 0** and **Web 5**), bre
 
 ## Technical Details
 
-Full API reference is available via [Doxygen Documentation](./docs/html/index.html) (run `doxygen docs/Doxyfile` to generate).
+Full API reference is available via Doxygen Documentation (run `doxygen docs/Doxyfile` to generate).
 
 ---
 
