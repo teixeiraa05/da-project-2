@@ -165,7 +165,7 @@ private:
     /**
      * @brief Custom heuristic that favors Splitting to maximize variables in registers, using Spilling only as a last resort.
      * @return true The algorithm is guaranteed to succeed due to a fallback tactic.
-     * @note Time complexity: O(S * (W^3 + E)), as it continuously evaluates the graph state after splits and hybrid removals.
+     * @note Time complexity: O(C * W^3 + S_limit * L * (W^2 * L + E)), as it evaluates graph colorability across multiple potential split points.
      */
     bool runFreeAllocation(); 
 

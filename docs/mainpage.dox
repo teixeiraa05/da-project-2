@@ -50,12 +50,13 @@
  * | **Basic** | $O(W^2 + E)$ | Simple Greedy | Low-pressure linear code |
  * | **Spilling** | $O(W^3 + E)$ | Degree + Footprint | General-purpose reliability |
  * | **Splitting** | $O(S \cdot L \cdot W^3)$ | Brute-Force Simulation | Breaking complex interference cycles |
- * | **Free** | $O(C \cdot (W^3 + E))$ | Clique + DSATUR + Hybrid | Maximum register utilization |
+ * | **Free** | $O(C \cdot W^3 + S_{limit} \cdot L \cdot (W^2 \cdot L + E))$ | Clique + DSATUR + Hybrid | Maximum register utilization |
  *
  * *Notation:*
  * - **W**: Number of Webs (nodes)
  * - **E**: Number of Interferences (edges)
  * - **L**: Maximum length of a Live Range (lines)
  * - **S**: Split Limit (constant)
+ * - **S_limit**: Fixed Split Limit for Free Allocator (constant = 3)
  * - **C**: Number of Spills/Splits performed
  */
