@@ -1,0 +1,9 @@
+# Presentation Case 3: The "Point Clique" (Fail-Fast Detection)
+# This graph has an instantaneous bottleneck at line 5 where 4 variables are alive.
+# Even with 3 registers, this is uncolorable. 
+# FreeAllocator detects the K4 clique instantly and spills without wasting time on DSATUR.
+varA: 1+,2,3,4,5,10-
+varB: 2+,3,4,5,11-
+varC: 3+,4,5,12-
+varD: 4+,5,13-
+varE: 14+,15-

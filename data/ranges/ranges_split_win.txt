@@ -1,0 +1,8 @@
+# Split Win Case
+# Region 1: High Pressure (N=2, needs 3)
+v1: 1, 2
+v2: 1, 2
+# Region 2: Low Pressure (N=2, needs 2)
+v3: 10, 11
+# The Bridge
+bridge: 1, 2, 10, 11

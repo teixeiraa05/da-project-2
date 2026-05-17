@@ -1,0 +1,11 @@
+# 5-Cycle Split Case (N=2)
+# v1 interferes with v2 and v5
+v1: 1, 2, 100, 101
+# v2 interferes with v1 and v3
+v2: 2, 3
+# v3 interferes with v2 and v4
+v3: 3, 4
+# v4 interferes with v3 and v5
+v4: 4, 5
+# v5 interferes with v4 and v1
+v5: 5, 1
