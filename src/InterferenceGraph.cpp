@@ -1,3 +1,7 @@
+/**
+ * @file InterferenceGraph.cpp
+ * @brief Implementation of the interference graph builder.
+ */
 #include "../include/InterferenceGraph.h"
 
 #include <iostream>

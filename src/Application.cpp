@@ -1,3 +1,7 @@
+/**
+ * @file Application.cpp
+ * @brief Implementation of the application driver (batch and interactive modes).
+ */
 #include "../include/Application.h"
 
 #include <iostream>
@@ -82,26 +86,30 @@ void Application::runInteractiveMode() {
         }
 
         switch (choice) {
-            case 1:
+            case 1: {
+                const string rangeFiles[] = {
+                    "ranges1.txt", "ranges2.txt", "ranges3.txt",
+                    "ranges4.txt", "ranges5.txt", "ranges6.txt",
+                    "ranges7.txt", "ranges8.txt",
+                    "ranges_cycle_split.txt", "ranges_pres1_dsatur.txt",
+                    "ranges_pres2_split.txt", "ranges_pres3_clique.txt",
+                    "ranges_split_win.txt"
+                };
+                const int numFiles = sizeof(rangeFiles) / sizeof(rangeFiles[0]);
                 cout << "\nAvailable ranges files:" << endl;
-                cout << "  1. ranges1.txt" << endl;
-                cout << "  2. ranges2.txt" << endl;
-                cout << "  3. ranges3.txt" << endl;
-                cout << "  4. ranges4.txt" << endl;
-                cout << "  5. ranges5.txt" << endl;
-                cout << "  6. ranges6.txt" << endl;
-                cout << "Choose [1-6]: ";
-                {
-                    int r;
-                    cin >> r;
-                    if (r >= 1 && r <= 6) {
-                        rangesFile = "data/ranges/ranges" + to_string(r) + ".txt";
-                        cout << "Ranges set to: " << rangesFile << endl;
-                    } else {
-                        cerr << "Invalid choice." << endl;
-                    }
+                for (int i = 0; i < numFiles; ++i)
+                    cout << "  " << (i + 1) << ". " << rangeFiles[i] << endl;
+                cout << "Choose [1-" << numFiles << "]: ";
+                int r;
+                cin >> r;
+                if (r >= 1 && r <= numFiles) {
+                    rangesFile = "data/ranges/" + rangeFiles[r - 1];
+                    cout << "Ranges set to: " << rangesFile << endl;
+                } else {
+                    cerr << "Invalid choice." << endl;
                 }
                 break;
+            }
             case 2:
                 cout << "\nAvailable algorithms:" << endl;
                 cout << "  1. basic" << endl;

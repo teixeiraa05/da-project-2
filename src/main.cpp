@@ -1,3 +1,7 @@
+/**
+ * @file main.cpp
+ * @brief Program entry point.
+ */
 #include "../include/Application.h"
 
 int main(int argc, char* argv[]) {

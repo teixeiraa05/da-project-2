@@ -1,3 +1,7 @@
+/**
+ * @file DataTypes.h
+ * @brief Core data structures: LiveRange and Web for register allocation.
+ */
 #ifndef DATATYPES_H
 #define DATATYPES_H
 
@@ -10,8 +14,7 @@
  */
 struct LiveRange {
     std::string variableName; /**< @brief Original variable name (e.g., "sum", "i"). */
-    std::set<int>
-        lines; /**< @brief Ordered unique set of program lines where the variable is alive. */
+    std::set<int> lines; /**< @brief Ordered unique set of program lines where the variable is alive. */
     std::set<int> defLines;    /**< @brief Lines where the variable is defined ('+' marker). */
     std::set<int> useEndLines; /**< @brief Lines of the variable's last use ('-' marker). */
 };
@@ -24,8 +27,7 @@ struct LiveRange {
 struct Web {
     int id;                   /**< @brief Unique numeric Web identifier (e.g., 0 for web0). */
     std::string variableName; /**< @brief Variable name associated with this live-range block. */
-    std::set<int>
-        lines; /**< @brief All merged program lines for this Web, kept sorted and unique. */
+    std::set<int> lines; /**< @brief All merged program lines for this Web, kept sorted and unique. */
     std::set<int> defLines;    /**< @brief Definition lines for this Web. */
     std::set<int> useEndLines; /**< @brief Last-use lines for this Web. */
 

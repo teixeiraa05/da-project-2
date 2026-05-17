@@ -12,14 +12,14 @@
  *
  * @subsection basic 1. Basic Allocator (Greedy Simplification)
  * The foundational algorithm based on Chaitin's graph simplification.
- * - **Core Principle:** A graph is $N$-colorable if we can iteratively remove nodes with degree $< N$.
- * - **Process:** Nodes with degree $< N$ are pushed onto a stack.
- * - **Failure Mode:** If all remaining nodes have degree $\geq N$, the allocator terminates as unfeasible.
+ * - **Core Principle:** A graph is \f$N\f$-colorable if we can iteratively remove nodes with degree \f$< N\f$.
+ * - **Process:** Nodes with degree \f$< N\f$ are pushed onto a stack.
+ * - **Failure Mode:** If all remaining nodes have degree \f$\geq N\f$, the allocator terminates as unfeasible.
  * - **Coloring:** Pops nodes from the stack and assigns the smallest available register index [0, N-1].
  *
  * @subsection spilling 2. Spilling Allocator (Load/Store Fallback)
  * Extends the Basic Allocator with a recovery strategy to ensure 100% completion rate.
- * - **Recovery Logic:** When stuck (all nodes $\geq N$), it selects a "victim" node to move to memory (Spill).
+ * - **Recovery Logic:** When stuck (all nodes \f$\geq N\f$), it selects a "victim" node to move to memory (Spill).
  * - **Heuristic:**
  *   - **Primary:** Highest Degree (removes the most interference edges).
  *   - **Secondary (Tie-breaker):** Smallest Footprint (minimizes data movement costs by picking nodes with fewer uses/defs).
@@ -29,14 +29,14 @@
  * A structural alternative to spilling that attempts to keep variables in registers by fragmenting their live ranges.
  * - **Exhaustive Brute-Force Search:** Instead of arbitrary mid-point splitting, this implementation runs a **full simulation** for every possible split point.
  * - **The "Best Point" Heuristic:** For each potential split, it rebuilds the graph and runs a "Simplified Colorability Test."
- * - **Evaluation Metric:** It selects the split point that minimizes the number of "stuck" nodes (degree $\geq N$).
+ * - **Evaluation Metric:** It selects the split point that minimizes the number of "stuck" nodes (degree \f$\geq N\f$).
  * - **Benefit:** This approach is uniquely capable of breaking complex interference **Cycles** (like the 5-cycle) without requiring any memory spills.
  *
  * @subsection free 4. Free (Hybrid) Allocator (Expert Decision Tree)
  * The most intelligent tier, combining global analysis with high-end coloring heuristics.
  *
  * **The Decision Loop:**
- * 1.  **Clique Detection (Fail-Fast):** Runs a greedy clique finder. If a clique of size $N+1$ is found at any program point, splitting is mathematically useless. It spills the heaviest variable **immediately** to bypass redundant computation.
+ * 1.  **Clique Detection (Fail-Fast):** Runs a greedy clique finder. If a clique of size \f$N+1\f$ is found at any program point, splitting is mathematically useless. It spills the heaviest variable **immediately** to bypass redundant computation.
  * 2.  **DSATUR Coloring:** Uses the **Degree of Saturation** algorithm. It prioritizes nodes that have the most colored neighbors, which is significantly more powerful than standard greedy ordering for dense interference graphs.
  * 3.  **Advanced Splitting Fallback:** If DSATUR fails, it triggers the **Exhaustive Brute-Force Split** logic.
  * 4.  **Emergency Spill:** If the split limit (3) is reached or no split point improves the graph, it performs a surgical spill as a final resort.
@@ -47,10 +47,10 @@
  *
  * | Algorithm | Time Complexity | Heuristic Strategy | Primary Use Case |
  * | :--- | :--- | :--- | :--- |
- * | **Basic** | $O(W^2 + E)$ | Simple Greedy | Low-pressure linear code |
- * | **Spilling** | $O(W^3 + E)$ | Degree + Footprint | General-purpose reliability |
- * | **Splitting** | $O(S \cdot L \cdot W^3)$ | Brute-Force Simulation | Breaking complex interference cycles |
- * | **Free** | $O(C \cdot (W^3 + E))$ | Clique + DSATUR + Hybrid | Maximum register utilization |
+ * | **Basic** | \f$O(W^2 + E)\f$ | Simple Greedy | Low-pressure linear code |
+ * | **Spilling** | \f$O(W^3 + E)\f$ | Degree + Footprint | General-purpose reliability |
+ * | **Splitting** | \f$O(S \cdot L \cdot W^3)\f$ | Brute-Force Simulation | Breaking complex interference cycles |
+ * | **Free** | \f$O(C \cdot (W^3 + E))\f$ | Clique + DSATUR + Hybrid | Maximum register utilization |
  *
  * *Notation:*
  * - **W**: Number of Webs (nodes)

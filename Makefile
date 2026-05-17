@@ -26,10 +26,19 @@ $(OBJ_DIR)/%.o: $(SRC_DIR)/%.cpp | $(OBJ_DIR)
 $(OBJ_DIR):
 	mkdir -p $(OBJ_DIR)
 
-clean:
+docs:
+	cd docs && doxygen
+
+docs-clean:
+	rm -rf docs/html
+
+clean: docs-clean
 	rm -rf $(OBJ_DIR) $(TARGET)
 
 run-batch: $(TARGET)
-	./$(TARGET) -b data/ranges.txt data/registers.txt data/allocation.txt
+	./$(TARGET) -b data/ranges/ranges1.txt data/basic/registers2.txt data/allocation.txt
 
-.PHONY: all clean run-batch
+test: $(TARGET)
+	@./tests/run_tests.sh
+
+.PHONY: all clean docs docs-clean run-batch test

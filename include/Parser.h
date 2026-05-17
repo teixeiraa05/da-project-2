@@ -1,3 +1,7 @@
+/**
+ * @file Parser.h
+ * @brief Parser for live ranges and register configuration input files.
+ */
 #ifndef PARSER_H
 #define PARSER_H
 
@@ -34,17 +38,17 @@ public:
     
     /**
      * @brief Parses the registers/configuration file.
-     * @return ConfigRegisters Structure filled with the number of registers, chosen algorithm and extracted K parameter.
+     * @return Structure filled with the number of registers, chosen algorithm and extracted K parameter.
      * @note Time complexity: O(L), where L is the total number of lines in the registers file.
      */
     ConfigRegisters parseRegistersFile();
     
     /**
      * @brief Parses the live ranges file.
-        * @details Reads each variable and stores raw live-range blocks with marker metadata:
-        * '+' marks definition points and '-' marks last-use points.
-        * Invalid tokens (including combinations like '+-') are reported as errors.
-     * @return std::vector<LiveRange> Clean list containing all live-range blocks ready for grouping.
+     * @details Reads each variable and stores raw live-range blocks with marker metadata:
+     * '+' marks definition points and '-' marks last-use points.
+     * Invalid tokens (including combinations like '+-') are reported as errors.
+     * @return Clean list containing all live-range blocks ready for grouping.
      * @note Time complexity: O(L * T log T), where L is the number of lines in the file and T is the number of temporal markers on a line (due to std::set lookups).
      */
     std::vector<LiveRange> parseRangesFile(); 
