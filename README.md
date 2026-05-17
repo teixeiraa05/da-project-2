@@ -2,6 +2,41 @@
 
 This project implements a high-performance **Global Register Allocator** using graph coloring heuristics. It transforms variable live ranges into an interference graph and provides four distinct allocation strategies to optimize register utilization and minimize memory traffic.
 
+## Usage
+
+### Batch Mode
+```bash
+./myProg -b <ranges_file> <config_file> <output_file>
+```
+
+### Interactive Mode
+```bash
+./myProg
+```
+Follow the on-screen menu to load data, choose algorithms, and run the allocation.
+
+## Testing and Validation
+
+The project includes a comprehensive automated test suite to ensure the technical integrity and output correctness of all allocation algorithms.
+
+### Running the Tests
+You can execute the test suite using the provided script:
+```bash
+./tests/run_tests.sh all        # Run the full suite (88 test cases)
+./tests/run_tests.sh smoke      # Run only error-handling/smoke tests
+./tests/run_tests.sh free       # Run only Free algorithm tests
+./tests/run_tests.sh ranges     # Run all ranges against all algorithms
+```
+
+### Validation Criteria
+A test is marked as **Passed** only if it satisfies the following structural requirements:
+1.  **Zero-Crash Execution:** The program must exit with code `0`.
+2.  **Artifact Generation:** The script verifies the creation of the report (`.txt`), the interference graph (`.gv`), and the allocated graph (`_allocated.gv`).
+3.  **Format Compliance:** The output text is scanned via `grep` to ensure it strictly follows the project specification (e.g., `webs: N`, `registers: N`, and `rX/M: webY` assignments).
+4.  **Graph Validity:** DOT files are checked for valid Graphviz headers to ensure visualization compatibility.
+
+---
+
 ## Allocation Architectures
 
 ### 1. Basic Allocator
@@ -14,9 +49,10 @@ A reliable allocator that resolves conflicts by moving variables to memory.
 
 ### 3. Splitting Allocator (Intelligent Structural Optimization)
 An advanced alternative to spilling that fragments live ranges to break interferences.
-*   **Exhaustive Search:** Unlike standard mid-point splitters, this implementation uses a **Brute-Force Simulation** to evaluate every possible split point for the most problematic variable.
-*   **Colorability Heuristic:** For each candidate split, it runs a simplification pass to count how many nodes would remain "stuck." It selects the exact program point that resulting in the **best colorability**.
-*   **Cycle Breaking:** This strategy is specifically designed to resolve complex interference **Cycles** (e.g., the 5-cycle case) without resorting to memory.
+*   **Exhaustive Search:** Unlike standard mid-point splitters, this implementation uses a **Brute-Force Simulation**.
+*   **Logic:** It identifies the highest-degree node (with at least 2 lines) and simulates a split at **every possible program point** within its range.
+*   **Evaluation:** For every potential split, it rebuilds a temporary interference graph and runs a simplification pass to count "stuck" nodes (those that would still force a spill). 
+*   **Selection:** It chooses the exact split point that results in the **best colorability** (minimum number of stuck nodes). This surgically breaks cycles and high-pressure cliques without immediately resorting to memory.
 
 ### 4. Free (Hybrid) Allocator
 The most sophisticated tier, combining global analysis with high-end heuristics. It follows a prioritized decision tree:
@@ -51,22 +87,25 @@ The performance of each allocator is determined by the number of variables ($W$)
 
 > For a detailed phase-by-phase breakdown and heuristic justifications, see [ALLOCATORS.md](./ALLOCATORS.md).
 
+### Visual Examples (5-Cycle Case)
+
+Below is a demonstration of how the **Splitting Allocator** resolves an uncolorable 5-cycle graph ($N=2$) by surgically breaking a live range.
+
+#### 1. Initial Interference Graph
+The original graph forms a pentagon (cycle of 5 nodes). With only 2 registers, this structure is uncolorable.
+
+![Colored Graph](docs/images/example1.png)
+
+#### 2. Allocated Graph (After Splitting)
+The allocator splits **Web 0** into two fragments (**Web 0** and **Web 5**), breaking the cycle and allowing a feasible 2-register allocation.
+
+![Colored Graph](docs/images/example1-colored.png)
+
+---
+
 ## Technical Details
 
 Full API reference is available via [Doxygen Documentation](./docs/html/index.html) (run `doxygen docs/Doxyfile` to generate).
-
-## Usage
-
-### Batch Mode
-```bash
-./myProg -b <ranges_file> <config_file> <output_file>
-```
-
-### Interactive Mode
-```bash
-./myProg
-```
-Follow the on-screen menu to load data, choose algorithms, and run the allocation.
 
 ---
 
