@@ -33,6 +33,19 @@ The **Free Allocator** is the most advanced tier, combining global program analy
 3.  **Advanced Splitting Fallback:** If DSATUR fails to color all nodes, it triggers the **Exhaustive Brute-Force Split** logic (from the Splitting Allocator) for the uncolored node with the highest degree.
 4.  **Surgical Spill:** If the split budget (limit of 3) is exhausted or splitting doesn't improve colorability, it performs a targeted spill of the hardest node and restarts the loop.
 
+### Strong & Optimal Graph Topologies
+
+The Free Allocator is highly efficient—and often optimal—for several critical graph classes:
+
+1.  **Interval Graphs:** Most linear code (without complex jumps) generates interference graphs that are *Interval Graphs*. DSATUR is near-optimal for this class, consistently finding the minimum chromatic number for standard program variable flows.
+2.  **Bipartite Graphs:** The algorithm is guaranteed to find an optimal 2-coloring for any bipartite structure, making it perfect for simple conditional flows.
+3.  **Cycle & Wheel Graphs:** DSATUR handles odd/even cycles and wheel topologies optimally. Combined with **Surgical Splitting**, the allocator can break these structures to fit into even smaller register sets than mathematically required for the original graph.
+4.  **Star Graphs:** In topologies where a central node interferes with many independent leaves, standard greedy algorithms often fail by coloring leaves first. The **Saturation Heuristic** ensures the central node is prioritized, leading to an optimal coloring instantly.
+5.  **Chordal Graphs:** Many register allocation problems result in chordal graphs. The combination of clique detection and DSATUR is exceptionally strong for these structures, as they are "Perfect Graphs" where the clique number equals the chromatic number.
+
+> **Note on Time Complexity vs. Generality:** 
+> While the Free Allocator achieves **optimal/close-to-optimal results (minimum colors)** for Interval, Bipartite, and Chordal graphs, its **time complexity is sub-optimal** compared to specialized solvers. For example, Interval graphs can be colored in $O(W \log W)$, whereas DSATUR requires $O(W^3)$. The implementation intentionally prioritizes **algorithmic robustness** and **universality** over theoretical performance for niche cases, ensuring a single resilient solver can handle hybrid graph topologies that "clean" specialized solvers cannot.
+
 ### Heuristic Limitations (Free Algorithm)
 
 While highly effective, each stage of the Free Allocator involves trade-offs and heuristic limitations:
@@ -51,6 +64,7 @@ The Free Allocator algorithm designed falters to certain types of graphs:
 2.  **Smallest Hard-to-Color Graph ($G_1$):** There exists a specific 3-colorable graph with 8 vertices and 12 edges where DSATUR is mathematically forced to use 4 colors regardless of tie-breaking. In such cases, the Free allocator will incorrectly trigger splitting or spilling.
 3.  **Highly Symmetric Graphs:** In graphs with high symmetry, many nodes have identical degrees and saturation levels. This neutralizes the "most constrained" heuristic, forcing the algorithm to make arbitrary choices that can lead to sub-optimal colorings.
 4.  **Non-Perfect Graphs:** While DSATUR is near-optimal for *Perfect Graphs* (like Interval Graphs found in simple linear code), it struggles with the odd cycles and holes found in complex control-flow graphs (CFGs) with multiple overlapping loops.
+
 
 ---
 
