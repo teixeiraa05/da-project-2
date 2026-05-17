@@ -1,4 +1,5 @@
-docs/html
+docs/html/*
+!docs/html/index.html
 *.txt
 *.txt.gv
 *.gv
