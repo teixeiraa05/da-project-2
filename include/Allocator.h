@@ -148,7 +148,7 @@ private:
      * from scratch. Skips webs listed in `skipWebs` if provided.
      * @param outAdj Output adjacency list mapping web id -> neighbor ids.
      * @param skipWebs Optional pointer to a set of web ids to ignore (e.g., spilled webs). If nullptr, no webs are skipped.
-     * @note Time complexity: O(W^2) where W is the number of webs.
+     * @note Time complexity: O(W^2 * L log L) where W is the number of webs and L the max lines.
      */
     void rebuildAdjacency(std::map<int, std::set<int>>& outAdj, const std::set<int>* skipWebs = nullptr) const;
     
@@ -157,21 +157,21 @@ private:
      * @details Pure Chaitin-style simplification: iteratively removes nodes with degree < N.
      * If all remaining nodes have degree >= N, the algorithm fails — no spill fallback.
      * @return true If all nodes were assigned a register color; false otherwise.
-     * @note Time complexity: O(W^2 + E), where W is the number of Webs and E the number of edges in the graph.
+     * @note Time complexity: O(W^2 * L log L + E), where W is the number of Webs, E the number of edges, and L the max lines.
      */
     bool runBasicAllocation();
     
     /**
      * @brief Coloring algorithm which, when stuck, sacrifices (spills) the Web with highest interference degree.
      * @return true If the allocation completed within the stipulated limit of K spills.
-     * @note Time complexity: O(W^3 + E) in the worst case, since each spill may require recomputing degrees for remaining nodes.
+     * @note Time complexity: O(W^2 * L log L + W^3 + E) in the worst case, as it builds the graph and simplifies with potential spills.
      */
     bool runSpillingAllocation();
 
     /**
      * @brief Algorithm that splits blocking Webs in half (Splitting) to try to place them in different registers.
      * @return true If the allocation succeeded with the transformed graph.
-     * @note Time complexity: O(S * (W^3 + E)), where S is the split limit (K_param), since computation restarts after each split.
+     * @note Time complexity: O(S * L^2 * W^2 log L), where S is the split limit and L max lines, due to exhaustive split simulations.
      */
     bool runSplittingAllocation();
 
@@ -180,7 +180,7 @@ private:
      * @details Uses clique detection (fail-fast), DSATUR coloring, brute-force splitting,
      * and emergency spilling as a fallback chain. May still fail if all heuristics are exhausted.
      * @return true If allocation succeeded; false if all heuristics are exhausted.
-     * @note Time complexity: O(C * W^3 + S_limit * L * (W^2 * L + E))), as it continuously evaluates the graph state after splits and hybrid removals.
+     * @note Time complexity: O(C * W^3 + S_limit * L^2 * W^2 log L), as it evaluates graph state after splits and hybrid removals.
      */
     bool runFreeAllocation(); 
 

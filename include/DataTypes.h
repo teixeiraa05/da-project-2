@@ -38,8 +38,7 @@ struct Web {
      * @param other The other Web structure to test for line intersection.
      * @return true If the Webs share at least one source line (there is interference).
      * @return false If the Webs occur at completely disjoint times in the program.
-     * @note Time complexity: O(N log M), where N is the number of lines in the current Web and M is
-     * the number in 'other' (due to std::set lookups).
+     * @note Time complexity: O(L log L), where L is the maximum number of lines in a live range (due to std::set lookups).
      */
     bool interferesWith(const Web& other) const {
         for (int line : lines) {
