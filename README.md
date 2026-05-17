@@ -2,6 +2,12 @@
 
 This project implements a high-performance **Global Register Allocator** using graph coloring heuristics. It transforms variable live ranges into an interference graph and provides four distinct allocation strategies to optimize register utilization and minimize memory traffic.
 
+## Contributors:
+
+- Rodrigo Fernandes Teixeira (up202404802@up.pt)
+- Viacheslav-Illia Detsyk (up202412740@up.pt)
+- Tomás Ferreira (up202305823@up.pt)
+
 ## Usage
 
 ### Batch Mode

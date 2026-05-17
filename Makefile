@@ -1,8 +1,8 @@
 CXX = g++
-CXXFLAGS = -std=c++17 -Wall -Wextra -Iinclude
+CXXFLAGS = -std=c++17 -Wall -Wextra -ICode/include
 
-SRC_DIR = src
-INC_DIR = include
+SRC_DIR = Code/src
+INC_DIR = Code/include
 OBJ_DIR = obj
 
 # Find all .cpp files in the src folder

@@ -99,15 +99,22 @@ void Application::runInteractiveMode() {
                 cout << "\nAvailable ranges files:" << endl;
                 for (int i = 0; i < numFiles; ++i)
                     cout << "  " << (i + 1) << ". " << rangeFiles[i] << endl;
-                cout << "Choose [1-" << numFiles << "]: ";
+                
                 int r;
-                cin >> r;
-                if (r >= 1 && r <= numFiles) {
-                    rangesFile = "data/ranges/" + rangeFiles[r - 1];
-                    cout << "Ranges set to: " << rangesFile << endl;
-                } else {
-                    cerr << "Invalid choice." << endl;
+                while (true) {
+                    cout << "Choose [1-" << numFiles << "]: ";
+                    if (!(cin >> r)) {
+                        cin.clear();
+                        cin.ignore(10000, '\n');
+                        cerr << "Invalid input. Please enter a number." << endl;
+                        continue;
+                    }
+                    if (r >= 1 && r <= numFiles) break;
+                    cerr << "Error: Selection must be between 1 and " << numFiles << "." << endl;
                 }
+                
+                rangesFile = "data/ranges/" + rangeFiles[r - 1];
+                cout << "Ranges set to: " << rangesFile << endl;
                 break;
             }
             case 2:
@@ -116,25 +123,50 @@ void Application::runInteractiveMode() {
                 cout << "  2. spilling" << endl;
                 cout << "  3. splitting" << endl;
                 cout << "  4. free" << endl;
-                cout << "Choose [1-4]: ";
-                {
-                    int algoChoice;
-                    cin >> algoChoice;
-                    if (algoChoice < 1 || algoChoice > 4) {
-                        cerr << "Invalid choice. Keeping: " << interactiveAlgorithm << endl;
-                        break;
+                
+                int algoChoice;
+                while (true) {
+                    cout << "Choose [1-4]: ";
+                    if (!(cin >> algoChoice)) {
+                        cin.clear();
+                        cin.ignore(10000, '\n');
+                        cerr << "Invalid input. Please enter a number." << endl;
+                        continue;
                     }
+                    if (algoChoice >= 1 && algoChoice <= 4) break;
+                    cerr << "Error: Selection must be between 1 and 4." << endl;
+                }
+
+                {
                     string names[] = {"basic", "spilling", "splitting", "free"};
                     interactiveAlgorithm = names[algoChoice - 1];
 
                     if (interactiveAlgorithm == "spilling" || interactiveAlgorithm == "splitting") {
                         int N, X;
-                        cout << "Registers (N) [1-4]: ";
-                        cin >> N;
-                        if (N < 1 || N > 4) N = 1;
-                        cout << "File variant (X) [1-4]: ";
-                        cin >> X;
-                        if (X < 1 || X > 4) X = 1;
+                        while (true) {
+                            cout << "Registers (N) [1-4]: ";
+                            if (!(cin >> N)) {
+                                cin.clear();
+                                cin.ignore(10000, '\n');
+                                cerr << "Invalid input. Please enter a number." << endl;
+                                continue;
+                            }
+                            if (N >= 1 && N <= 4) break;
+                            cerr << "Error: Number of registers must be between 1 and 4." << endl;
+                        }
+
+                        while (true) {
+                            cout << "File variant (X) [1-4]: ";
+                            if (!(cin >> X)) {
+                                cin.clear();
+                                cin.ignore(10000, '\n');
+                                cerr << "Invalid input. Please enter a number." << endl;
+                                continue;
+                            }
+                            if (X >= 1 && X <= 4) break;
+                            cerr << "Error: File variant must be between 1 and 4." << endl;
+                        }
+
                         configVariant = N;
                         if (interactiveAlgorithm == "spilling")
                             configFilePath = "data/spilling/" + to_string(N) + "/spilling" + to_string(X) + ".txt";
@@ -142,15 +174,16 @@ void Application::runInteractiveMode() {
                             configFilePath = "data/splitting/" + to_string(N) + "/splitting" + to_string(X) + ".txt";
                         cout << "Set to: " << interactiveAlgorithm << " (N=" << N << ", X=" << X << ")" << endl;
                     } else {
-                        int minV, maxV;
-                        if (interactiveAlgorithm == "basic")      { minV = 2; maxV = 3; }
-                        else                                      { minV = 1; maxV = 4; }
-
-                        cout << "Config variant (registers) [" << minV << "-" << maxV << "]: ";
-                        cin >> configVariant;
-                        if (configVariant < minV || configVariant > maxV) {
-                            configVariant = minV;
-                            cout << "Invalid. Using: " << configVariant << endl;
+                        while (true) {
+                            cout << "Config variant (registers) [1-4]: ";
+                            if (!(cin >> configVariant)) {
+                                cin.clear();
+                                cin.ignore(10000, '\n');
+                                cerr << "Invalid input. Please enter a number." << endl;
+                                continue;
+                            }
+                            if (configVariant >= 1 && configVariant <= 4) break;
+                            cerr << "Error: Number of registers must be between 1 and 4." << endl;
                         }
 
                         if (interactiveAlgorithm == "basic")

@@ -1,5 +1,5 @@
 docs/html
-./*.txt
+*.txt
 *.txt.gv
 *.gv
 myProg
