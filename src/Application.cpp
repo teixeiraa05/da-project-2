@@ -144,7 +144,7 @@ void Application::runInteractiveMode() {
                     } else {
                         int minV, maxV;
                         if (interactiveAlgorithm == "basic")      { minV = 2; maxV = 3; }
-                        else                                      { minV = 1; maxV = 3; }
+                        else                                      { minV = 1; maxV = 4; }
 
                         cout << "Config variant (registers) [" << minV << "-" << maxV << "]: ";
                         cin >> configVariant;
