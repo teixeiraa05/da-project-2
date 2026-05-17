@@ -1,3 +1,7 @@
+/**
+ * @file Allocator.h
+ * @brief Register allocator implementing graph-coloring allocation with spilling and splitting.
+ */
 #ifndef ALLOCATOR_H
 #define ALLOCATOR_H
 
@@ -75,6 +79,11 @@ private:
     /**
      * @brief Simplification step: find a node with degree < N, remove it from the graph,
      * push it onto the stack and decrement the remaining node count.
+     * @param adjList Interference adjacency list used for degree computation.
+     * @param inGraph Marks whether each node is currently active in simplification.
+     * @param N Number of available registers.
+     * @param S Stack with node ids in reverse simplification order.
+     * @param nodesRemaining Counter of active nodes; decremented when a node is removed.
      * @return true if a node was removed; false otherwise.
      */
     bool simplifyFindAndRemove(const std::map<int, std::set<int>>& adjList,
@@ -84,15 +93,14 @@ private:
         int& nodesRemaining);
   
     /**
-        * @brief Selects and removes one spill candidate from the current simplification graph.
-        * @details Chooses the active web with the highest interference degree. If several nodes
-        * share the same degree, prefers the one with the smaller live-range footprint.
+     * @brief Selects and removes one spill candidate from the current simplification graph.
+     * @details Chooses the active web with the highest interference degree. If several nodes
+     * share the same degree, prefers the one with the smaller live-range footprint.
      * @param originalAdjList Interference adjacency list used for degree computation.
      * @param inGraph Marks whether each node is currently active in simplification.
      * @param nodesRemaining Counter of active nodes; decremented when a spill is applied.
      * @param spilledNodeId Output parameter with the chosen node ID.
-     * @return true If a node was selected and removed.
-     * @return false If no active node was available.
+     * @return true If a node was selected and removed; false otherwise.
      */
     bool spillNode(const std::map<int, std::set<int>>& originalAdjList,
                    std::map<int, bool>& inGraph,
@@ -100,13 +108,12 @@ private:
                    int& spilledNodeId);
                    
     /**
-    * @brief Assigns register colors by popping nodes from the simplification stack.
-    * @param S Stack with node ids in reverse simplification order.
-    * @param adjList Adjacency list used to collect already-used neighbor colors.
-    * @param N Number of available registers.
-    * @return true If every node in the stack received a register color.
-    * @return false If at least one node could not be assigned any color.
-    */
+     * @brief Assigns register colors by popping nodes from the simplification stack.
+     * @param S Stack with node ids in reverse simplification order.
+     * @param adjList Adjacency list used to collect already-used neighbor colors.
+     * @param N Number of available registers.
+     * @return true If every node in the stack received a register color; false otherwise.
+     */
     bool colorNodes(std::stack<int>& S, const std::map<int, std::set<int>>& adjList, int N);
 
     /**
@@ -117,8 +124,7 @@ private:
      * @param adjList Adjacency list representation of the graph.
      * @param webIds Set of Web IDs to color (others are ignored or assumed spilled).
      * @param N Number of available registers.
-     * @return true If all webs in webIds received a color.
-     * @return false If at least one web could not be colored with N registers.
+     * @return true If all webs in webIds received a color; false otherwise.
      * @note Time complexity: O(W^2 * N) where W is the number of webs.
      */
     bool colorNodesDSATUR(const std::map<int, std::set<int>>& adjList,
@@ -126,26 +132,33 @@ private:
 
     /**
      * @brief Finds a clique (complete subgraph) using a greedy heuristic.
+     * @details Iteratively picks the vertex with the highest degree and adds it to the clique.
+     * Used as a fail-fast test: if a clique larger than N exists, splitting cannot help.
      * @param adjList Current adjacency list.
      * @param webIds Set of active web IDs to consider.
      * @return A set of Web IDs forming the detected clique.
+     * @note Time complexity: O(W^3) where W is the number of webs (worst-case).
      */
     std::set<int> findGreedyClique(const std::map<int, std::set<int>>& adjList,
         const std::set<int>& webIds) const;
         
     /**
      * @brief Rebuilds the adjacency list for the current `finalWebs` set.
+     * @details Iterates over all webs in `finalWebs` and recomputes interference edges
+     * from scratch. Skips webs listed in `skipWebs` if provided.
      * @param outAdj Output adjacency list mapping web id -> neighbor ids.
      * @param skipWebs Optional pointer to a set of web ids to ignore (e.g., spilled webs). If nullptr, no webs are skipped.
+     * @note Time complexity: O(W^2) where W is the number of webs.
      */
     void rebuildAdjacency(std::map<int, std::set<int>>& outAdj, const std::set<int>* skipWebs = nullptr) const;
     
     /**
-        * @brief Attempts to color the graph by repeatedly removing nodes with degree less than N.
-        * @details When all remaining nodes have degree >= N, it selects a spill candidate and continues.
-        * @return true If allocation terminates successfully (possibly with spilled webs marked as memory).
-        * @note Time complexity: O(W^2 + E), where W is the number of Webs and E the number of edges in the graph.
-        */
+     * @brief Attempts to color the graph by repeatedly removing nodes with degree less than N.
+     * @details Pure Chaitin-style simplification: iteratively removes nodes with degree < N.
+     * If all remaining nodes have degree >= N, the algorithm fails — no spill fallback.
+     * @return true If all nodes were assigned a register color; false otherwise.
+     * @note Time complexity: O(W^2 + E), where W is the number of Webs and E the number of edges in the graph.
+     */
     bool runBasicAllocation();
     
     /**
@@ -164,8 +177,10 @@ private:
 
     /**
      * @brief Custom heuristic that favors Splitting to maximize variables in registers, using Spilling only as a last resort.
-     * @return true The algorithm is guaranteed to succeed due to a fallback tactic.
-     * @note Time complexity: O(C * W^3 + S_limit * L * (W^2 * L + E)), as it evaluates graph colorability across multiple potential split points.
+     * @details Uses clique detection (fail-fast), DSATUR coloring, brute-force splitting,
+     * and emergency spilling as a fallback chain. May still fail if all heuristics are exhausted.
+     * @return true If allocation succeeded; false if all heuristics are exhausted.
+     * @note Time complexity: O(C * W^3 + S_limit * L * (W^2 * L + E))), as it continuously evaluates the graph state after splits and hybrid removals.
      */
     bool runFreeAllocation(); 
 

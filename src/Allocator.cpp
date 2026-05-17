@@ -1,3 +1,7 @@
+/**
+ * @file Allocator.cpp
+ * @brief Implementation of graph-coloring register allocation strategies.
+ */
 #include "../include/Allocator.h"
 
 #include <algorithm>

@@ -1,3 +1,7 @@
+/**
+ * @file Application.h
+ * @brief Top-level application driver for batch and interactive modes.
+ */
 #ifndef APPLICATION_H
 #define APPLICATION_H
 

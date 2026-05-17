@@ -1,5 +1,6 @@
-/*
- * Graph.h
+/**
+ * @file Graph.h
+ * @brief Generic graph data structures: Vertex, Edge, and Graph templates.
  */
 #ifndef GRAPH_H_
 #define GRAPH_H_
@@ -22,72 +23,217 @@ template <class T> class Vertex;
 
 /****************** Provided structures  ********************/
 
+/**
+ * @brief Represents a vertex in a generic graph.
+ * @tparam T Type of the information stored in the vertex.
+ */
 template <class T>
 class Vertex {
-	T info;                // contents
-	vector<Edge<T> > adj;  // list of outgoing edges
-	bool visited;          // auxiliary field
-    bool processing;       // auxiliary field
-    int indegree;          // auxiliary field
-    int num;               // auxiliary field
-    int low;               // auxiliary field
-    //vector<Edge<T>> incoming; // incoming edges
+    T info;                   /**< @brief Contents stored in the vertex. */
+    vector<Edge<T> > adj;     /**< @brief List of outgoing edges. */
+    bool visited;             /**< @brief Auxiliary field for graph traversal. */
+    bool processing;          /**< @brief Auxiliary field for cycle detection. */
+    int indegree;             /**< @brief Auxiliary field for topological sorting. */
+    int num;                  /**< @brief Auxiliary field for articulation points/SCC. */
+    int low;                  /**< @brief Auxiliary field for articulation points/SCC. */
 
+    /**
+     * @brief Adds an outgoing edge to this vertex.
+     * @param dest Destination vertex.
+     * @param w Edge weight.
+     */
     void addEdge(Vertex<T> *dest, double w);
-	bool removeEdgeTo(Vertex<T> *d);
-    //bool removeEdgeFrom(Vertex<T> *s);
+
+    /**
+     * @brief Removes an outgoing edge to a given destination.
+     * @param d Destination vertex.
+     * @return true if the edge was found and removed; false otherwise.
+     */
+    bool removeEdgeTo(Vertex<T> *d);
 
 public:
-	Vertex(T in);
+    /**
+     * @brief Constructs a vertex with the given info.
+     * @param in The info to store.
+     */
+    Vertex(T in);
+
+    /** @return The stored info. */
     T getInfo() const;
+
+    /** @brief Sets the stored info.
+     *  @param in The new info value. */
     void setInfo(T in);
+
+    /** @return true if the vertex has been visited. */
     bool isVisited() const;
+
+    /** @brief Marks the vertex as visited or not.
+     *  @param v The visited state. */
     void setVisited(bool v);
+
+    /** @return true if the vertex is being processed. */
     bool isProcessing() const;
+
+    /** @brief Marks the vertex as processing or not.
+     *  @param p The processing state. */
     void setProcessing(bool p);
+
+    /** @return The indegree of the vertex. */
     int getIndegree() const;
+
+    /** @brief Sets the indegree of the vertex.
+     *  @param indegree The new indegree value. */
     void setIndegree(int indegree);
+
+    /** @brief Sets the low value (used in SCC/articulation algorithms).
+     *  @param low The new low value. */
     void setLow(int low);
+
+    /** @brief Sets the num value (used in SCC/articulation algorithms).
+     *  @param num The new num value. */
     void setNum(int num);
+
+    /** @return The num value. */
     int getNum() const;
+
+    /** @return The low value. */
     int getLow() const;
 
+    /** @return Const reference to the adjacency list. */
     const vector<Edge<T>> &getAdj() const;
+
+    /** @brief Sets the adjacency list.
+     *  @param adj The new adjacency list. */
     void setAdj(const vector<Edge<T>> &adj);
+
     friend class Graph<T>;
-    //vector<Edge <T>> getIncoming() const;
 };
 
+/**
+ * @brief Represents a directed edge in a generic graph.
+ * @tparam T Type of the information stored in the vertices.
+ */
 template <class T>
 class Edge {
-	Vertex<T> * dest;      // destination vertex
-	double weight;         // edge weight
+    Vertex<T> * dest;   /**< @brief Destination vertex. */
+    double weight;       /**< @brief Edge weight. */
 public:
-	Edge(Vertex<T> *d, double w);
+    /**
+     * @brief Constructs an edge to a destination with a given weight.
+     * @param d Destination vertex.
+     * @param w Edge weight.
+     */
+    Edge(Vertex<T> *d, double w);
+
+    /** @return Pointer to the destination vertex. */
     Vertex<T> *getDest() const;
+
+    /** @brief Sets the destination vertex.
+     *  @param dest The new destination vertex. */
     void setDest(Vertex<T> *dest);
+
+    /** @return The edge weight. */
     double getWeight() const;
+
+    /** @brief Sets the edge weight.
+     *  @param weight The new weight value. */
     void setWeight(double weight);
+
     friend class Graph<T>;
-	friend class Vertex<T>;
+    friend class Vertex<T>;
 };
 
+/**
+ * @brief Represents a generic directed or undirected graph.
+ * @tparam T Type of the information stored in vertices.
+ */
 template <class T>
 class Graph {
-	vector<Vertex<T> *> vertexSet;    // vertex set
-    void dfsVisit(Vertex<T> *v,  vector<T> & res) const;
+    vector<Vertex<T> *> vertexSet; /**< @brief Set of vertices in the graph. */
+
+    /**
+     * @brief DFS visit helper used by the public dfs() methods.
+     * @param v Current vertex being visited.
+     * @param res Vector to accumulate the traversal order.
+     */
+    void dfsVisit(Vertex<T> *v, vector<T> & res) const;
+
 public:
+    /**
+     * @brief Finds a vertex by its stored info.
+     * @param in The info to search for.
+     * @return Pointer to the vertex, or nullptr if not found.
+     */
     Vertex<T> *findVertex(const T &in) const;
+
+    /** @return The number of vertices in the graph. */
     int getNumVertex() const;
-	bool addVertex(const T &in);
-	bool removeVertex(const T &in);
-	bool addEdge(const T &sourc, const T &dest, double w);
-	bool addUndirectedEdge(const T &sourc, const T &dest, double w);
-	bool removeEdge(const T &sourc, const T &dest);
+
+    /**
+     * @brief Adds a vertex with the given info.
+     * @param in The info to store in the new vertex.
+     * @return true if the vertex was added; false if a vertex with that info already exists.
+     */
+    bool addVertex(const T &in);
+
+    /**
+     * @brief Removes a vertex and all its incident edges.
+     * @param in The info of the vertex to remove.
+     * @return true if the vertex was found and removed; false otherwise.
+     */
+    bool removeVertex(const T &in);
+
+    /**
+     * @brief Adds a directed edge between two vertices.
+     * @param sourc Info of the source vertex.
+     * @param dest Info of the destination vertex.
+     * @param w Edge weight.
+     * @return true if the edge was added; false if either vertex does not exist.
+     */
+    bool addEdge(const T &sourc, const T &dest, double w);
+
+    /**
+     * @brief Adds an undirected edge between two vertices.
+     * @param sourc Info of the first vertex.
+     * @param dest Info of the second vertex.
+     * @param w Edge weight.
+     * @return true if the edge was added; false if either vertex does not exist.
+     */
+    bool addUndirectedEdge(const T &sourc, const T &dest, double w);
+
+    /**
+     * @brief Removes a directed edge between two vertices.
+     * @param sourc Info of the source vertex.
+     * @param dest Info of the destination vertex.
+     * @return true if the edge was removed; false if either vertex or the edge does not exist.
+     */
+    bool removeEdge(const T &sourc, const T &dest);
+
+    /** @return The vector of all vertices in the graph. */
     vector<Vertex<T> * > getVertexSet() const;
-	vector<T> dfs() const;
-	vector<T> dfs(const T & source) const;
-	vector<T> bfs(const T & source) const;
+
+    /** @return DFS traversal from an arbitrary start vertex. */
+    vector<T> dfs() const;
+
+    /**
+     * @brief DFS traversal from a given source vertex.
+     * @param source The starting vertex info.
+     * @return Vector of visited vertex infos in DFS order.
+     */
+    vector<T> dfs(const T & source) const;
+
+    /**
+     * @brief BFS traversal from a given source vertex.
+     * @param source The starting vertex info.
+     * @return Vector of visited vertex infos in BFS order.
+     */
+    vector<T> bfs(const T & source) const;
+
+    /**
+     * @brief Emits a DOT file representation of the graph.
+     * @param gname Base filename (without extension); ".gv" is appended automatically.
+     */
     void emitDOTFile(string gname);
 
 };
@@ -219,8 +365,8 @@ void Vertex<T>::setAdj(const vector<Edge<T>> &adj) {
 
 
 /*
- *  Adds a vertex with a given content or info (in) to a graph (this).
- *  Returns true if successful, and false if a vertex with that content already exists.
+ * Adds a vertex with a given content or info (in) to a graph (this).
+ * Returns true if successful, and false if a vertex with that content already exists.
  */
 template <class T>
 bool Graph<T>::addVertex(const T &in) {
@@ -248,8 +394,7 @@ bool Graph<T>::addEdge(const T &sourc, const T &dest, double w) {
 }
 
 /*
- * Adds an undirected edge to a graph (this), given the contents of the source and
- * destination vertices and the edge weight (w).
+ * Adds an undirected edge to a graph (this).
  * Returns true if successful, and false if the source or destination vertex does not exist.
  */
 template <class T>
@@ -274,7 +419,6 @@ void Vertex<T>::addEdge(Vertex<T> *d, double w) {
 
 /*
  * Removes an edge from a graph (this).
- * The edge is identified by the source (sourc) and destination (dest) contents.
  * Returns true if successful, and false if such edge does not exist.
  */
 template <class T>
@@ -307,8 +451,7 @@ bool Vertex<T>::removeEdgeFrom(Vertex<T> *d) {
 
 
 /*
- * Auxiliary function to remove an outgoing edge (with a given destination (d))
- * from a vertex (this).
+ * Auxiliary function to remove an outgoing edge from a vertex.
  * Returns true if successful, and false if such edge does not exist.
  */
 template <class T>
@@ -322,9 +465,8 @@ bool Vertex<T>::removeEdgeTo(Vertex<T> *d) {
 }
 
 /*
- *  Removes a vertex with a given content (in) from a graph (this), and
- *  all outgoing and incoming edges.
- *  Returns true if successful, and false if such vertex does not exist.
+ * Removes a vertex with a given content (in) from a graph, and all incident edges.
+ * Returns true if successful, and false if such vertex does not exist.
  */
 template <class T>
 bool Graph<T>::removeVertex(const T &in) {

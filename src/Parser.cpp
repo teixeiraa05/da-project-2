@@ -1,3 +1,7 @@
+/**
+ * @file Parser.cpp
+ * @brief Implementation of the input file parser.
+ */
 #include "../include/Parser.h"
 
 #include <algorithm>
